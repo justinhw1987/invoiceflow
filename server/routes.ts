@@ -190,6 +190,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/invoices/export", requireAuth, async (req, res) => {
+    try {
+      const invoices = await storage.getInvoices(req.session.userId!);
+      
+      // Prepare data for Excel export
+      const exportData = invoices.map(invoice => ({
+        'Invoice Number': invoice.invoiceNumber,
+        'Customer Name': invoice.customer?.name || 'N/A',
+        'Customer Email': invoice.customer?.email || 'N/A',
+        'Date': new Date(invoice.date).toLocaleDateString(),
+        'Service': invoice.service,
+        'Amount': `$${parseFloat(invoice.amount).toFixed(2)}`,
+        'Status': invoice.isPaid ? 'Paid' : 'Unpaid',
+      }));
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 15 }, // Invoice Number
+        { wch: 25 }, // Customer Name
+        { wch: 30 }, // Customer Email
+        { wch: 12 }, // Date
+        { wch: 40 }, // Service
+        { wch: 12 }, // Amount
+        { wch: 10 }, // Status
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
+
+      // Generate buffer
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      // Set headers for file download
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=invoices-${timestamp}.xlsx`);
+      
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error("Export error:", error);
+      res.status(500).json({ message: "Failed to export invoices" });
+    }
+  });
+
   app.get("/api/invoices/:id", requireAuth, async (req, res) => {
     try {
       const invoice = await storage.getInvoice(req.params.id);
@@ -266,53 +313,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Email sending error:", error);
       res.status(500).json({ message: "Failed to send invoice email" });
-    }
-  });
-
-  app.get("/api/invoices/export", requireAuth, async (req, res) => {
-    try {
-      const invoices = await storage.getInvoices(req.session.userId!);
-      
-      // Prepare data for Excel export
-      const exportData = invoices.map(invoice => ({
-        'Invoice Number': invoice.invoiceNumber,
-        'Customer Name': invoice.customer?.name || 'N/A',
-        'Customer Email': invoice.customer?.email || 'N/A',
-        'Date': new Date(invoice.date).toLocaleDateString(),
-        'Service': invoice.service,
-        'Amount': `$${parseFloat(invoice.amount).toFixed(2)}`,
-        'Status': invoice.isPaid ? 'Paid' : 'Unpaid',
-      }));
-
-      // Create workbook and worksheet
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths for better readability
-      worksheet['!cols'] = [
-        { wch: 15 }, // Invoice Number
-        { wch: 25 }, // Customer Name
-        { wch: 30 }, // Customer Email
-        { wch: 12 }, // Date
-        { wch: 40 }, // Service
-        { wch: 12 }, // Amount
-        { wch: 10 }, // Status
-      ];
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
-
-      // Generate buffer
-      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-      // Set headers for file download
-      const timestamp = new Date().toISOString().split('T')[0];
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=invoices-${timestamp}.xlsx`);
-      
-      res.send(excelBuffer);
-    } catch (error) {
-      console.error("Export error:", error);
-      res.status(500).json({ message: "Failed to export invoices" });
     }
   });
 
