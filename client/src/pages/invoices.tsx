@@ -10,6 +10,7 @@ import type { Invoice, Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { InvoiceViewDialog } from "@/components/invoice-view-dialog";
+import { downloadInvoicePDF } from "@/lib/download-invoice-pdf";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
@@ -78,6 +79,10 @@ export default function Invoices() {
   const handleViewInvoice = (invoice: InvoiceWithCustomer) => {
     setSelectedInvoice(invoice);
     setIsViewDialogOpen(true);
+  };
+
+  const handleDownloadPDF = (invoice: InvoiceWithCustomer) => {
+    downloadInvoicePDF(invoice.id, invoice.invoiceNumber);
   };
 
   const handleExport = async () => {
@@ -241,6 +246,14 @@ export default function Invoices() {
                             data-testid={`button-view-${invoice.id}`}
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownloadPDF(invoice)}
+                            data-testid={`button-download-pdf-${invoice.id}`}
+                          >
+                            <Download className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"

@@ -9,9 +9,10 @@ This is a professional invoice management system built with React, Express, and 
 **Key Features:**
 - Customer relationship management (CRM) with full CRUD operations
 - Invoice generation with sequential numbering and PDF preview
+- PDF download functionality available in both invoice table and invoice view dialog
 - Payment status tracking with Excel export capability
 - Automated email delivery of invoices to customers via Resend
-- Customizable company name in account settings (used in outbound emails)
+- Customizable company name in account settings (used in outbound emails and PDFs)
 - Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
 - Responsive design following Material Design principles with Linear-inspired aesthetics
@@ -54,8 +55,8 @@ Preferred communication style: Simple, everyday language.
 - RESTful endpoints under `/api` prefix
 - Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password, PATCH /api/auth/update-profile
 - Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
-- Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/export, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
-- **Note:** Specific routes (like /export) are placed before parameterized routes (like /:id) to prevent route matching conflicts
+- Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/export, GET /api/invoices/:id/download, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- **Note:** Specific routes (like /export and /download) are placed before parameterized routes (like /:id) to prevent route matching conflicts
 
 **Session Management:**
 - express-session middleware with PostgreSQL session store (connect-pg-simple)

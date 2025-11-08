@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import type { Invoice, Customer, InvoiceItem } from "@shared/schema";
+import { downloadInvoicePDF } from "@/lib/download-invoice-pdf";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
@@ -36,12 +37,7 @@ export function InvoiceViewDialog({
   const displayAmount = invoice.amount || "0";
 
   const handleDownloadPDF = () => {
-    const link = document.createElement('a');
-    link.href = `/api/invoices/${invoice.id}/download`;
-    link.download = `invoice-${invoice.invoiceNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadInvoicePDF(invoice.id, invoice.invoiceNumber);
   };
 
   return (
