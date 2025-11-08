@@ -6,6 +6,8 @@ import {
 } from "@/components/ui/dialog";
 import { InvoicePreview } from "@/components/invoice-preview";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import type { Invoice, Customer, InvoiceItem } from "@shared/schema";
 
 interface InvoiceWithCustomer extends Invoice {
@@ -33,11 +35,31 @@ export function InvoiceViewDialog({
     : invoice.service;
   const displayAmount = invoice.amount || "0";
 
+  const handleDownloadPDF = () => {
+    const link = document.createElement('a');
+    link.href = `/api/invoices/${invoice.id}/download`;
+    link.download = `invoice-${invoice.invoiceNumber}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Invoice #{invoice.invoiceNumber}</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Invoice #{invoice.invoiceNumber}</DialogTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleDownloadPDF}
+              data-testid="button-download-pdf"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+          </div>
         </DialogHeader>
         
         {hasItems ? (
