@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema, createInvoiceWithItemsSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -216,16 +216,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invoices = await storage.getInvoices(req.session.userId!);
       
-      // Prepare data for Excel export
-      const exportData = invoices.map(invoice => ({
-        'Invoice Number': invoice.invoiceNumber,
-        'Customer Name': invoice.customer?.name || 'N/A',
-        'Customer Email': invoice.customer?.email || 'N/A',
-        'Date': new Date(invoice.date).toLocaleDateString(),
-        'Service': invoice.service,
-        'Amount': `$${parseFloat(invoice.amount).toFixed(2)}`,
-        'Status': invoice.isPaid ? 'Paid' : 'Unpaid',
-      }));
+      // Prepare data for Excel export - flatten invoice items
+      const exportData: any[] = [];
+      
+      invoices.forEach(invoice => {
+        if (invoice.items && invoice.items.length > 0) {
+          // For invoices with items, create a row for each item
+          invoice.items.forEach((item: any, index: number) => {
+            exportData.push({
+              'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
+              'Customer Name': index === 0 ? invoice.customer?.name || 'N/A' : '',
+              'Customer Email': index === 0 ? invoice.customer?.email || 'N/A' : '',
+              'Date': index === 0 ? new Date(invoice.date).toLocaleDateString() : '',
+              'Description': item.description,
+              'Amount': `$${parseFloat(item.amount).toFixed(2)}`,
+              'Total': index === 0 ? `$${parseFloat(invoice.amount).toFixed(2)}` : '',
+              'Status': index === 0 ? (invoice.isPaid ? 'Paid' : 'Unpaid') : '',
+            });
+          });
+        } else {
+          // For legacy invoices without items
+          exportData.push({
+            'Invoice Number': invoice.invoiceNumber,
+            'Customer Name': invoice.customer?.name || 'N/A',
+            'Customer Email': invoice.customer?.email || 'N/A',
+            'Date': new Date(invoice.date).toLocaleDateString(),
+            'Description': invoice.service || 'N/A',
+            'Amount': `$${parseFloat(invoice.amount).toFixed(2)}`,
+            'Total': `$${parseFloat(invoice.amount).toFixed(2)}`,
+            'Status': invoice.isPaid ? 'Paid' : 'Unpaid',
+          });
+        }
+      });
 
       // Create workbook and worksheet
       const workbook = XLSX.utils.book_new();
@@ -237,8 +259,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { wch: 25 }, // Customer Name
         { wch: 30 }, // Customer Email
         { wch: 12 }, // Date
-        { wch: 40 }, // Service
+        { wch: 40 }, // Description
         { wch: 12 }, // Amount
+        { wch: 12 }, // Total
         { wch: 10 }, // Status
       ];
 
@@ -275,16 +298,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/invoices", requireAuth, async (req, res) => {
     try {
-      const invoiceData = insertInvoiceSchema.parse(req.body);
+      const invoiceData = createInvoiceWithItemsSchema.parse(req.body);
       const invoiceNumber = await storage.getNextInvoiceNumber(req.session.userId!);
       
-      // Get customer details for Google Sheets
+      // Get customer details
       const customer = await storage.getCustomer(invoiceData.customerId);
       if (!customer) {
         return res.status(404).json({ message: "Customer not found" });
       }
 
-      const invoice = await storage.createInvoice({
+      const invoice = await storage.createInvoiceWithItems({
         ...invoiceData,
         userId: req.session.userId!,
         invoiceNumber,
@@ -324,16 +347,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.getUser(req.session.userId!);
 
+      // Use items if available, otherwise use legacy service field
+      const serviceDescription = invoice.items && invoice.items.length > 0
+        ? invoice.items.map((item: any) => `${item.description}: $${parseFloat(item.amount).toFixed(2)}`).join(', ')
+        : invoice.service;
+
       await sendInvoiceEmail(
         invoice.customer.email,
         invoice.customer.name,
         invoice.customer.phone,
         invoice.customer.address,
         invoice.invoiceNumber,
-        invoice.service,
+        serviceDescription,
         invoice.amount,
         invoice.date,
-        user?.companyName || undefined
+        user?.companyName || undefined,
+        invoice.items || []
       );
 
       res.json({ message: "Invoice sent successfully" });
