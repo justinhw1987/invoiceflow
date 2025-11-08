@@ -322,13 +322,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Invoice not found" });
       }
 
+      const user = await storage.getUser(req.session.userId!);
+
       await sendInvoiceEmail(
         invoice.customer.email,
         invoice.customer.name,
         invoice.invoiceNumber,
         invoice.service,
         invoice.amount,
-        invoice.date
+        invoice.date,
+        user?.companyName
       );
 
       res.json({ message: "Invoice sent successfully" });

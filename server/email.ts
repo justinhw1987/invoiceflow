@@ -93,10 +93,13 @@ export async function sendInvoiceEmail(
   invoiceNumber: number,
   service: string,
   amount: string,
-  date: string
+  date: string,
+  companyName?: string
 ) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
+    
+    const senderName = companyName || 'Invoice Manager';
     
     const html = `
       <!DOCTYPE html>
@@ -141,7 +144,7 @@ export async function sendInvoiceEmail(
               <p>Thank you for your business!</p>
             </div>
             <div class="footer">
-              <p>Invoice Manager - Professional Invoice Management</p>
+              <p>${senderName} - Professional Invoice Management</p>
             </div>
           </div>
         </body>
@@ -151,7 +154,7 @@ export async function sendInvoiceEmail(
     await client.emails.send({
       from: fromEmail,
       to: customerEmail,
-      subject: `Invoice #${invoiceNumber} from Invoice Manager`,
+      subject: `Invoice #${invoiceNumber} from ${senderName}`,
       html,
     });
 
