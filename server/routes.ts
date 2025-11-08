@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -92,6 +92,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     res.json({ id: user.id, username: user.username });
+  });
+
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword, confirmPassword } = changePasswordSchema.parse(req.body);
+      
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Verify current password
+      const validPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      // Update password
+      await storage.updateUserPassword(user.id, hashedPassword);
+
+      // Rotate session for security (regenerate to prevent session fixation)
+      const userId = user.id;
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error:", err);
+          return res.status(500).json({ message: "Password changed but session update failed" });
+        }
+        
+        // Reassign userId to the new session
+        req.session.userId = userId;
+        res.json({ message: "Password changed successfully" });
+      });
+    } catch (error) {
+      console.error("Password change error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
   });
 
   // Customer routes

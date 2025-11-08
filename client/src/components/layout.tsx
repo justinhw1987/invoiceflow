@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,9 +8,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FileText, LogOut, User } from "lucide-react";
+import { FileText, LogOut, User, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordChangeDialog } from "@/components/password-change-dialog";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +20,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ["/api/auth/me"],
@@ -89,6 +92,10 @@ export function Layout({ children }: LayoutProps) {
                   <User className="mr-2 h-4 w-4" />
                   <span>{user?.username || "User"}</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)} data-testid="button-account-settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Account Settings</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Logout</span>
@@ -102,6 +109,11 @@ export function Layout({ children }: LayoutProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+
+      <PasswordChangeDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+      />
     </div>
   );
 }
