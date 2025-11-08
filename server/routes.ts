@@ -65,10 +65,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = user.id;
-      res.json({ ok: true, user: { id: user.id, username: user.username } });
+      
+      // Save session before sending response
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ ok: false, message: "Login failed" });
+        }
+        res.json({ ok: true, user: { id: user.id, username: user.username } });
+      });
     } catch (error) {
       console.error('Login validation error:', error);
-      res.status(400).json({ ok: false, message: "Invalid request" });
+      return res.status(400).json({ ok: false, message: "Invalid request" });
     }
   });
 
