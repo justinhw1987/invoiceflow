@@ -114,7 +114,7 @@ export default function CreateInvoice() {
   };
 
   const handleSaveAndEmail = async () => {
-    const result = await createMutation.mutateAsync({
+    const result: any = await createMutation.mutateAsync({
       customerId,
       date,
       items: items.map(item => ({
@@ -124,7 +124,7 @@ export default function CreateInvoice() {
       isPaid: false,
     });
 
-    if (result.id) {
+    if (result?.id) {
       emailMutation.mutate(result.id);
     }
   };
