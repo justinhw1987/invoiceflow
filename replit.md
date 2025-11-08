@@ -2,15 +2,16 @@
 
 ## Overview
 
-This is a professional invoice management system built with React, Express, and PostgreSQL. The application enables users to create, track, and manage customer invoices with automated email delivery and Google Sheets integration for real-time synchronization of invoice data.
+This is a professional invoice management system built with React, Express, and PostgreSQL. The application enables users to create, track, and manage customer invoices with automated email delivery and Excel export functionality for invoice data.
 
 **Core Purpose:** Streamline invoice workflows for small businesses and freelancers by providing a centralized platform for customer management, invoice creation, payment tracking, and automated communications.
 
 **Key Features:**
 - Customer relationship management (CRM) with full CRUD operations
 - Invoice generation with sequential numbering and PDF preview
-- Payment status tracking with Google Sheets synchronization
+- Payment status tracking with Excel export capability
 - Automated email delivery of invoices to customers via Resend
+- Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
 - Responsive design following Material Design principles with Linear-inspired aesthetics
 
@@ -49,9 +50,10 @@ Preferred communication style: Simple, everyday language.
 
 **API Structure:**
 - RESTful endpoints under `/api` prefix
-- Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
+- Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password
 - Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
-- Invoice endpoints: GET/POST /api/invoices, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/export, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- **Note:** Specific routes (like /export) are placed before parameterized routes (like /:id) to prevent route matching conflicts
 
 **Session Management:**
 - express-session middleware with PostgreSQL session store (connect-pg-simple)
@@ -95,7 +97,6 @@ invoices
   - date, service (text)
   - amount (decimal 10,2)
   - isPaid (boolean, default false)
-  - googleSheetRowId (text, nullable - stores Google Sheets row reference)
   - createdAt, updatedAt (timestamps)
   - Cascade delete when user or customer is deleted
 ```
@@ -121,15 +122,16 @@ invoices
 - Sends invoice details in plain text email format
 - Configured with from_email and api_key from connector settings
 
-**Spreadsheet Integration: Google Sheets API**
-- Integration via Google OAuth through Replit Connectors
-- googleapis library (v4) with OAuth2 client
-- Token refresh handled automatically via connector API
-- Operations:
-  - addInvoiceToSheet: Appends new invoice row to configured spreadsheet
-  - updateInvoiceInSheet: Updates existing row when payment status changes
-- Access token caching with expiration validation
-- Uncachable client pattern for dynamic credential management
+**Excel Export: xlsx Library**
+- Client-side download of invoice data in Excel format (.xlsx)
+- Triggered via GET /api/invoices/export endpoint
+- Generated file includes:
+  - Invoice Number
+  - Customer Name and Email
+  - Date, Service, and Amount
+  - Payment Status (Paid/Unpaid)
+- Filename format: invoices-YYYY-MM-DD.xlsx
+- Excel files generated server-side using xlsx library with formatted columns and proper headers
 
 **Authentication:**
 - bcrypt for password hashing (10 rounds)
