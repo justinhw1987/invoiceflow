@@ -1,0 +1,155 @@
+# Invoice Management Application
+
+## Overview
+
+This is a professional invoice management system built with React, Express, and PostgreSQL. The application enables users to create, track, and manage customer invoices with automated email delivery and Google Sheets integration for real-time synchronization of invoice data.
+
+**Core Purpose:** Streamline invoice workflows for small businesses and freelancers by providing a centralized platform for customer management, invoice creation, payment tracking, and automated communications.
+
+**Key Features:**
+- Customer relationship management (CRM) with full CRUD operations
+- Invoice generation with sequential numbering and PDF preview
+- Payment status tracking with Google Sheets synchronization
+- Automated email delivery of invoices to customers via Resend
+- Session-based authentication with bcrypt password hashing
+- Responsive design following Material Design principles with Linear-inspired aesthetics
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+
+**Framework:** React 18 with TypeScript in SPA mode
+
+**UI Component Strategy:**
+- shadcn/ui component library built on Radix UI primitives
+- Tailwind CSS for styling with custom design tokens
+- Component structure follows atomic design principles (ui components, composed components, pages)
+- Form validation using React Hook Form with Zod schemas
+- State management via TanStack Query (React Query) for server state
+
+**Routing:**
+- Client-side routing with Wouter (lightweight alternative to React Router)
+- Route protection via AuthGuard component that checks session validity
+- Routes: /login, / (dashboard), /customers, /invoices, /invoices/new
+
+**Design System:**
+- Typography: Inter font family from Google Fonts
+- Color scheme: Neutral base with primary blue accent (defined in CSS custom properties)
+- Spacing: Tailwind's default scale (2, 4, 6, 8 units)
+- Components styled with "new-york" variant of shadcn/ui
+- Responsive grid layouts with mobile-first breakpoints
+
+### Backend Architecture
+
+**Framework:** Express.js with TypeScript
+
+**API Structure:**
+- RESTful endpoints under `/api` prefix
+- Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
+- Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
+- Invoice endpoints: GET/POST /api/invoices, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+
+**Session Management:**
+- express-session middleware with PostgreSQL session store (connect-pg-simple)
+- Session secret configured via environment variable
+- 7-day cookie expiration with httpOnly flag
+- Authentication middleware (requireAuth) protects all non-auth routes
+
+**Data Validation:**
+- Shared Zod schemas between client and server for type safety
+- Request body validation using drizzle-zod insert schemas
+
+**Error Handling:**
+- Centralized error responses with appropriate HTTP status codes
+- Request/response logging middleware for API calls
+
+### Data Storage
+
+**Database:** PostgreSQL (via Neon serverless driver)
+
+**ORM:** Drizzle ORM with type-safe query builder
+
+**Schema Design:**
+```
+users
+  - id (UUID, primary key)
+  - username (text, unique)
+  - password (text, bcrypt hashed)
+
+customers
+  - id (UUID, primary key)
+  - userId (foreign key to users)
+  - name, email, phone, address (text fields)
+  - createdAt (timestamp)
+  - Cascade delete when user is deleted
+
+invoices
+  - id (UUID, primary key)
+  - userId (foreign key to users)
+  - customerId (foreign key to customers)
+  - invoiceNumber (integer, sequential per user)
+  - date, service (text)
+  - amount (decimal 10,2)
+  - isPaid (boolean, default false)
+  - googleSheetRowId (text, nullable - stores Google Sheets row reference)
+  - createdAt, updatedAt (timestamps)
+  - Cascade delete when user or customer is deleted
+```
+
+**Migration Strategy:**
+- Drizzle Kit for schema migrations
+- Push-based deployment (drizzle-kit push)
+- Schema defined in shared/schema.ts for cross-environment consistency
+
+**Database Access Pattern:**
+- Storage abstraction layer (IStorage interface in server/storage.ts)
+- DatabaseStorage implementation using Drizzle ORM
+- All queries filtered by userId for multi-tenant data isolation
+- Connection pooling via @neondatabase/serverless Pool
+
+### External Dependencies
+
+**Email Service: Resend**
+- Integration via Replit Connectors API
+- Dynamic credential retrieval using REPLIT_CONNECTORS_HOSTNAME
+- Authentication via REPL_IDENTITY or WEB_REPL_RENEWAL tokens
+- Uncachable client pattern (getUncachableResendClient) to handle credential rotation
+- Sends invoice details in plain text email format
+- Configured with from_email and api_key from connector settings
+
+**Spreadsheet Integration: Google Sheets API**
+- Integration via Google OAuth through Replit Connectors
+- googleapis library (v4) with OAuth2 client
+- Token refresh handled automatically via connector API
+- Operations:
+  - addInvoiceToSheet: Appends new invoice row to configured spreadsheet
+  - updateInvoiceInSheet: Updates existing row when payment status changes
+- Access token caching with expiration validation
+- Uncachable client pattern for dynamic credential management
+
+**Authentication:**
+- bcrypt for password hashing (10 rounds)
+- Session tokens stored in PostgreSQL via connect-pg-simple
+
+**Build Tooling:**
+- Vite for frontend bundling with React plugin
+- esbuild for server-side bundling (ESM format)
+- TypeScript compiler for type checking (noEmit mode)
+- Development: tsx for running TypeScript directly
+- Production: Compiled to dist/ directory
+
+**Development Tools:**
+- @replit/vite-plugin-runtime-error-modal for error overlay
+- @replit/vite-plugin-cartographer for code navigation
+- @replit/vite-plugin-dev-banner for development indicators
+- Hot module replacement (HMR) enabled in development
+
+**Deployment Environment:**
+- Designed for Replit deployment infrastructure
+- Environment variables: DATABASE_URL, SESSION_SECRET, REPLIT_CONNECTORS_HOSTNAME
+- Node.js runtime with ESM module system
+- Static file serving for production build
