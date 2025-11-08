@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "./db";
 import { addInvoiceToSheet, updateInvoiceInSheet } from "./google-sheets";
 import { sendInvoiceEmail } from "./email";
 
@@ -13,15 +15,21 @@ declare module "express-session" {
   }
 }
 
+const PgSession = connectPgSimple(session);
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Session middleware
+  // Session middleware with PostgreSQL store
   app.use(
     session({
+      store: new PgSession({
+        pool,
+        createTableIfMissing: true,
+      }),
       secret: process.env.SESSION_SECRET || "invoice-manager-secret-key-change-in-production",
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       },
