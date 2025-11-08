@@ -107,8 +107,8 @@ async function generateInvoicePDF(
   customerAddress: string,
   invoiceNumber: number,
   date: string,
-  service: string,
-  amount: string,
+  items: Array<{ description: string; amount: string }>,
+  totalAmount: string,
   companyName?: string
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -164,11 +164,15 @@ async function generateInvoicePDF(
     doc.text('AMOUNT', 400, doc.y - 12, { width: 150, align: 'right' });
     doc.moveDown(1);
 
-    // Service item
-    doc.fontSize(11).fillColor('#111827').text(service, 50, doc.y, { width: 350 });
-    const serviceY = doc.y - 12;
-    doc.text(`$${parseFloat(amount).toFixed(2)}`, 400, serviceY, { width: 150, align: 'right' });
-    doc.moveDown(2);
+    // Line items
+    items.forEach((item) => {
+      doc.fontSize(11).fillColor('#111827').text(item.description, 50, doc.y, { width: 350 });
+      const itemY = doc.y - 12;
+      doc.text(`$${parseFloat(item.amount).toFixed(2)}`, 400, itemY, { width: 150, align: 'right' });
+      doc.moveDown(1);
+    });
+
+    doc.moveDown(1);
 
     // Total line
     doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, doc.y).lineTo(550, doc.y).stroke();
@@ -176,7 +180,7 @@ async function generateInvoicePDF(
 
     // Total
     doc.fontSize(14).fillColor('#111827').text('TOTAL', 400, doc.y, { width: 100, align: 'right' });
-    doc.fontSize(18).fillColor('#3b82f6').text(`$${parseFloat(amount).toFixed(2)}`, 400, doc.y, { width: 150, align: 'right' });
+    doc.fontSize(18).fillColor('#3b82f6').text(`$${parseFloat(totalAmount).toFixed(2)}`, 400, doc.y, { width: 150, align: 'right' });
     doc.moveDown(4);
 
     // Footer message
@@ -203,7 +207,8 @@ export async function sendInvoiceEmail(
   service: string,
   amount: string,
   date: string,
-  companyName?: string
+  companyName?: string,
+  items?: Array<{ description: string; amount: string }>
 ) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
@@ -211,7 +216,11 @@ export async function sendInvoiceEmail(
     const rawSenderName = companyName || 'Invoice Manager';
     const senderName = escapeHtml(rawSenderName);
     const escapedCustomerName = escapeHtml(customerName);
-    const escapedService = escapeHtml(service);
+    
+    // Use items if provided, otherwise fall back to legacy service field
+    const invoiceItems = items && items.length > 0
+      ? items
+      : [{ description: service, amount }];
     
     // Generate PDF
     const pdfBuffer = await generateInvoicePDF(
@@ -221,13 +230,24 @@ export async function sendInvoiceEmail(
       customerAddress,
       invoiceNumber,
       date,
-      service,
+      invoiceItems,
       amount,
       companyName
     );
 
     // Convert PDF buffer to base64 for email attachment
     const pdfBase64 = pdfBuffer.toString('base64');
+
+    // Generate item rows for email
+    const itemRows = invoiceItems.map(item => {
+      const escapedDescription = escapeHtml(item.description);
+      return `
+        <div class="detail-row">
+          <span>${escapedDescription}</span>
+          <span>$${parseFloat(item.amount).toFixed(2)}</span>
+        </div>
+      `;
+    }).join('');
 
     const html = `
       <!DOCTYPE html>
@@ -240,7 +260,8 @@ export async function sendInvoiceEmail(
             .content { padding: 30px; background: #f9fafb; }
             .invoice-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-            .total { font-size: 24px; font-weight: bold; color: #3b82f6; margin-top: 20px; }
+            .total-row { display: flex; justify-content: space-between; padding: 15px 0; margin-top: 10px; border-top: 2px solid #3b82f6; }
+            .total { font-size: 24px; font-weight: bold; color: #3b82f6; }
             .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
           </style>
         </head>
@@ -258,12 +279,12 @@ export async function sendInvoiceEmail(
                   <span><strong>Invoice Date:</strong></span>
                   <span>${new Date(date).toLocaleDateString()}</span>
                 </div>
-                <div class="detail-row">
-                  <span><strong>Service:</strong></span>
-                  <span>${escapedService}</span>
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                  <strong>Items:</strong>
                 </div>
-                <div class="detail-row">
-                  <span><strong>Amount:</strong></span>
+                ${itemRows}
+                <div class="total-row">
+                  <span><strong>Total:</strong></span>
                   <span class="total">$${parseFloat(amount).toFixed(2)}</span>
                 </div>
               </div>

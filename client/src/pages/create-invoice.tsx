@@ -14,18 +14,22 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import type { Customer } from "@shared/schema";
 import { InvoicePreview } from "@/components/invoice-preview";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+
+type LineItem = {
+  description: string;
+  amount: string;
+};
 
 export default function CreateInvoice() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [service, setService] = useState("");
-  const [amount, setAmount] = useState("");
+  const [items, setItems] = useState<LineItem[]>([{ description: "", amount: "" }]);
   const [showPreview, setShowPreview] = useState(false);
 
   const { data: customers } = useQuery<Customer[]>({
@@ -73,8 +77,32 @@ export default function CreateInvoice() {
     },
   });
 
+  const addLineItem = () => {
+    setItems([...items, { description: "", amount: "" }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateLineItem = (index: number, field: keyof LineItem, value: string) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    setItems(newItems);
+  };
+
+  const calculateTotal = () => {
+    return items.reduce((total, item) => {
+      const amount = parseFloat(item.amount) || 0;
+      return total + amount;
+    }, 0).toFixed(2);
+  };
+
   const handlePreview = () => {
-    if (!customerId || !service || !amount) {
+    const hasEmptyItems = items.some(item => !item.description || !item.amount);
+    if (!customerId || hasEmptyItems) {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields",
@@ -89,8 +117,10 @@ export default function CreateInvoice() {
     const result = await createMutation.mutateAsync({
       customerId,
       date,
-      service,
-      amount: amount,
+      items: items.map(item => ({
+        description: item.description,
+        amount: item.amount,
+      })),
       isPaid: false,
     });
 
@@ -103,8 +133,10 @@ export default function CreateInvoice() {
     createMutation.mutate({
       customerId,
       date,
-      service,
-      amount: amount,
+      items: items.map(item => ({
+        description: item.description,
+        amount: item.amount,
+      })),
       isPaid: false,
     });
   };
@@ -112,6 +144,7 @@ export default function CreateInvoice() {
   const selectedCustomer = customers?.find((c) => c.id === customerId);
 
   if (showPreview && selectedCustomer) {
+    const total = calculateTotal();
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -140,12 +173,23 @@ export default function CreateInvoice() {
                 <p className="font-medium">{new Date(date).toLocaleDateString()}</p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Service</Label>
-                <p className="font-medium">{service}</p>
+                <Label className="text-muted-foreground">Line Items</Label>
+                <div className="space-y-2 mt-2">
+                  {items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-start p-3 bg-muted/50 rounded-md">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.description}</p>
+                      </div>
+                      <p className="font-semibold ml-4">${parseFloat(item.amount).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div>
-                <Label className="text-muted-foreground">Amount</Label>
-                <p className="text-2xl font-bold">${parseFloat(amount).toFixed(2)}</p>
+              <div className="border-t pt-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-muted-foreground text-base">Total Amount</Label>
+                  <p className="text-2xl font-bold">${total}</p>
+                </div>
               </div>
               <div className="flex gap-3 pt-4">
                 <Button
@@ -171,8 +215,8 @@ export default function CreateInvoice() {
           <InvoicePreview
             customer={selectedCustomer}
             date={date}
-            service={service}
-            amount={amount}
+            service={items.map(i => i.description).join(", ")}
+            amount={total}
             invoiceNumber={1}
           />
         </div>
@@ -227,35 +271,77 @@ export default function CreateInvoice() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="service">Service Description *</Label>
-              <Textarea
-                id="service"
-                value={service}
-                onChange={(e) => setService(e.target.value)}
-                placeholder="Describe the service provided..."
-                rows={4}
-                data-testid="input-service"
-              />
-            </div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Line Items *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addLineItem}
+                  data-testid="button-add-item"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount *</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  $
-                </span>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="pl-7 h-11"
-                  placeholder="0.00"
-                  data-testid="input-amount"
-                />
+              {items.map((item, index) => (
+                <div key={index} className="flex gap-3 items-start p-4 border rounded-lg bg-muted/30" data-testid={`line-item-${index}`}>
+                  <div className="flex-1 space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`description-${index}`} className="text-xs text-muted-foreground">
+                        Description
+                      </Label>
+                      <Textarea
+                        id={`description-${index}`}
+                        value={item.description}
+                        onChange={(e) => updateLineItem(index, "description", e.target.value)}
+                        placeholder="Service or product description..."
+                        rows={2}
+                        data-testid={`input-description-${index}`}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`amount-${index}`} className="text-xs text-muted-foreground">
+                        Amount
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          $
+                        </span>
+                        <Input
+                          id={`amount-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.amount}
+                          onChange={(e) => updateLineItem(index, "amount", e.target.value)}
+                          className="pl-7 h-11"
+                          placeholder="0.00"
+                          data-testid={`input-amount-${index}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {items.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeLineItem(index)}
+                      className="mt-8"
+                      data-testid={`button-remove-item-${index}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+
+              <div className="flex justify-between items-center p-4 bg-primary/5 rounded-lg border-2 border-primary/20">
+                <span className="font-semibold text-lg">Total</span>
+                <span className="text-2xl font-bold text-primary">${calculateTotal()}</span>
               </div>
             </div>
 
