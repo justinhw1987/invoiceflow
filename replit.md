@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
 - Client-side routing with Wouter (lightweight alternative to React Router)
 - Route protection via AuthGuard component that checks session validity
 - Routes: /login, / (dashboard), /customers, /invoices, /invoices/new
+- Invoice viewing handled via modal dialog (InvoiceViewDialog) rather than separate detail route
 
 **Design System:**
 - Typography: Inter font family from Google Fonts

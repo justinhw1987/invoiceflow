@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import type { Invoice, Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { InvoiceViewDialog } from "@/components/invoice-view-dialog";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
@@ -17,6 +18,8 @@ interface InvoiceWithCustomer extends Invoice {
 export default function Invoices() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithCustomer | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useQuery<InvoiceWithCustomer[]>({
     queryKey: ["/api/invoices"],
@@ -70,6 +73,11 @@ export default function Invoices() {
 
   const handleEmail = (invoice: InvoiceWithCustomer) => {
     emailMutation.mutate(invoice.id);
+  };
+
+  const handleViewInvoice = (invoice: InvoiceWithCustomer) => {
+    setSelectedInvoice(invoice);
+    setIsViewDialogOpen(true);
   };
 
   const handleExport = async () => {
@@ -229,7 +237,7 @@ export default function Invoices() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setLocation(`/invoices/${invoice.id}`)}
+                            onClick={() => handleViewInvoice(invoice)}
                             data-testid={`button-view-${invoice.id}`}
                           >
                             <Eye className="h-4 w-4" />
@@ -253,6 +261,11 @@ export default function Invoices() {
           )}
         </CardContent>
       </Card>
+      <InvoiceViewDialog
+        invoice={selectedInvoice}
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+      />
     </div>
   );
 }

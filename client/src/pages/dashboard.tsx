@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Plus, FileText, DollarSign, CheckCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import type { Invoice, Customer } from "@shared/schema";
+import { InvoiceViewDialog } from "@/components/invoice-view-dialog";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
@@ -12,6 +14,8 @@ interface InvoiceWithCustomer extends Invoice {
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithCustomer | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useQuery<InvoiceWithCustomer[]>({
     queryKey: ["/api/invoices"],
@@ -26,6 +30,11 @@ export default function Dashboard() {
     .reduce((sum, inv) => sum + parseFloat(inv.amount), 0) || 0;
 
   const recentInvoices = invoices?.slice(0, 5) || [];
+
+  const handleViewInvoice = (invoice: InvoiceWithCustomer) => {
+    setSelectedInvoice(invoice);
+    setIsViewDialogOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -145,7 +154,7 @@ export default function Dashboard() {
                     <tr
                       key={invoice.id}
                       className="border-b hover-elevate cursor-pointer"
-                      onClick={() => setLocation(`/invoices/${invoice.id}`)}
+                      onClick={() => handleViewInvoice(invoice)}
                       data-testid={`row-invoice-${invoice.id}`}
                     >
                       <td className="py-4 px-4 font-medium">
@@ -175,6 +184,11 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      <InvoiceViewDialog
+        invoice={selectedInvoice}
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+      />
     </div>
   );
 }
