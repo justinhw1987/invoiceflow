@@ -100,7 +100,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"'/]/g, (char) => map[char]);
 }
 
-async function generateInvoicePDF(
+export async function generateInvoicePDF(
   customerName: string,
   customerEmail: string,
   customerPhone: string,

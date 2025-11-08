@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
-import { sendInvoiceEmail } from "./email";
+import { sendInvoiceEmail, generateInvoicePDF } from "./email";
 import * as XLSX from "xlsx";
 
 declare module "express-session" {
@@ -377,6 +377,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Email sending error:", error);
       res.status(500).json({ message: "Failed to send invoice email" });
+    }
+  });
+
+  app.get("/api/invoices/:id/download", requireAuth, async (req, res) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      
+      if (!invoice || !invoice.customer) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+
+      // Use items if available, otherwise use legacy service field
+      const invoiceItems = invoice.items && invoice.items.length > 0
+        ? invoice.items.map((item: any) => ({ description: item.description, amount: item.amount }))
+        : [{ description: invoice.service || "Service", amount: invoice.amount || "0" }];
+
+      const pdfBuffer = await generateInvoicePDF(
+        invoice.customer.name,
+        invoice.customer.email,
+        invoice.customer.phone,
+        invoice.customer.address,
+        invoice.invoiceNumber,
+        invoice.date,
+        invoiceItems,
+        invoice.amount || "0",
+        user?.companyName || undefined
+      );
+
+      // Set headers for file download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`);
+      
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({ message: "Failed to generate PDF" });
     }
   });
 
