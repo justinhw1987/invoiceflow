@@ -327,6 +327,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await sendInvoiceEmail(
         invoice.customer.email,
         invoice.customer.name,
+        invoice.customer.phone,
+        invoice.customer.address,
         invoice.invoiceNumber,
         invoice.service,
         invoice.amount,
