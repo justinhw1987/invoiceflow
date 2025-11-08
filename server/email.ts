@@ -33,6 +33,16 @@ async function getCredentialsFromReplit() {
 }
 
 async function getCredentials() {
+  // Debug logging to help diagnose Railway issues
+  console.log('Environment check:', {
+    hasResendApiKey: !!process.env.RESEND_API_KEY,
+    hasFromEmail: !!process.env.FROM_EMAIL,
+    hasReplitHostname: !!process.env.REPLIT_CONNECTORS_HOSTNAME,
+    hasReplIdentity: !!process.env.REPL_IDENTITY,
+    hasWebRenewal: !!process.env.WEB_REPL_RENEWAL,
+    nodeEnv: process.env.NODE_ENV
+  });
+  
   // First, try to use environment variables (Railway/standard setup)
   const hasApiKey = !!process.env.RESEND_API_KEY;
   const hasFromEmail = !!process.env.FROM_EMAIL;
@@ -40,8 +50,12 @@ async function getCredentials() {
   // If either is set, both must be set
   if (hasApiKey || hasFromEmail) {
     if (!hasApiKey || !hasFromEmail) {
-      throw new Error('Both RESEND_API_KEY and FROM_EMAIL environment variables must be set together');
+      const missingVars = [];
+      if (!hasApiKey) missingVars.push('RESEND_API_KEY');
+      if (!hasFromEmail) missingVars.push('FROM_EMAIL');
+      throw new Error(`Missing environment variables: ${missingVars.join(', ')}. Both RESEND_API_KEY and FROM_EMAIL must be set together.`);
     }
+    console.log('Using environment variables for Resend');
     return {
       apiKey: process.env.RESEND_API_KEY!,
       fromEmail: process.env.FROM_EMAIL!
@@ -53,6 +67,7 @@ async function getCredentials() {
                        (process.env.REPL_IDENTITY || process.env.WEB_REPL_RENEWAL);
   
   if (!hasReplitEnv) {
+    console.error('No Resend credentials found in environment');
     throw new Error(
       'Resend credentials not configured. Please set RESEND_API_KEY and FROM_EMAIL environment variables, ' +
       'or configure Replit connector integration.'
@@ -60,6 +75,7 @@ async function getCredentials() {
   }
   
   // Fall back to Replit connector integration
+  console.log('Using Replit connector for Resend');
   return getCredentialsFromReplit();
 }
 
