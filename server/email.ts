@@ -226,6 +226,9 @@ export async function sendInvoiceEmail(
       companyName
     );
 
+    // Convert PDF buffer to base64 for email attachment
+    const pdfBase64 = pdfBuffer.toString('base64');
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -284,7 +287,7 @@ export async function sendInvoiceEmail(
       attachments: [
         {
           filename: `invoice-${invoiceNumber}.pdf`,
-          content: pdfBuffer,
+          content: pdfBase64,
         },
       ],
     });
