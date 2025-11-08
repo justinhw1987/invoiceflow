@@ -1,9 +1,10 @@
-// Reference: google-sheet integration blueprint
+// Google Sheets integration
+// Supports both Railway (Service Account) and Replit (OAuth connector)
 import { google } from 'googleapis';
 
 let connectionSettings: any;
 
-async function getAccessToken() {
+async function getAccessTokenFromReplit() {
   if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
     return connectionSettings.settings.access_token;
   }
@@ -38,7 +39,39 @@ async function getAccessToken() {
 }
 
 export async function getUncachableGoogleSheetClient() {
-  const accessToken = await getAccessToken();
+  // Check for Railway/standard setup (Service Account)
+  const hasServiceAccount = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY;
+  
+  if (hasServiceAccount) {
+    // Use service account authentication (Railway/standard setup)
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+      throw new Error('Both GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY must be set together');
+    }
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    return google.sheets({ version: 'v4', auth });
+  }
+  
+  // Check if Replit connector environment is available
+  const hasReplitEnv = process.env.REPLIT_CONNECTORS_HOSTNAME && 
+                       (process.env.REPL_IDENTITY || process.env.WEB_REPL_RENEWAL);
+  
+  if (!hasReplitEnv) {
+    throw new Error(
+      'Google Sheets credentials not configured. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY ' +
+      'environment variables, or configure Replit connector integration.'
+    );
+  }
+  
+  // Fall back to Replit connector integration (OAuth)
+  const accessToken = await getAccessTokenFromReplit();
 
   const oauth2Client = new google.auth.OAuth2();
   oauth2Client.setCredentials({
@@ -52,6 +85,12 @@ export async function getUncachableGoogleSheetClient() {
 let cachedSpreadsheetId: string | null = null;
 
 export async function getInvoiceSpreadsheet() {
+  // If GOOGLE_SHEET_ID is set, use that (Railway/standard setup)
+  if (process.env.GOOGLE_SHEET_ID) {
+    return process.env.GOOGLE_SHEET_ID;
+  }
+  
+  // Otherwise, create/cache dynamically (Replit connector setup)
   if (cachedSpreadsheetId) {
     return cachedSpreadsheetId;
   }
