@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  companyName: text("company_name"),
 });
 
 // Customers table
@@ -97,6 +98,11 @@ export const changePasswordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// Update profile schema
+export const updateProfileSchema = z.object({
+  companyName: z.string().min(1, "Company name is required").max(255, "Company name is too long"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -108,3 +114,4 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
 
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
