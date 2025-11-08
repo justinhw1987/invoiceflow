@@ -1,10 +1,7 @@
-// Reference: javascript_database integration blueprint
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+// Database connection supporting both Replit (Neon) and Railway (standard PostgreSQL)
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
-
-neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -12,5 +9,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Configure SSL for production environments like Railway
+const isProduction = process.env.NODE_ENV === 'production';
+const connectionString = process.env.DATABASE_URL;
+
+export const pool = new Pool({ 
+  connectionString,
+  ssl: isProduction ? { rejectUnauthorized: false } : undefined
+});
+
+export const db = drizzle(pool, { schema });
