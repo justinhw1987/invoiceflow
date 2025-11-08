@@ -18,6 +18,9 @@ declare module "express-session" {
 const PgSession = connectPgSimple(session);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Trust proxy for Railway/production deployments
+  app.set('trust proxy', 1);
+
   // Session middleware with PostgreSQL store
   app.use(
     session({
@@ -29,8 +32,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
         httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       },
     })
