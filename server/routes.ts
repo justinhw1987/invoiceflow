@@ -331,7 +331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoice.service,
         invoice.amount,
         invoice.date,
-        user?.companyName
+        user?.companyName || undefined
       );
 
       res.json({ message: "Invoice sent successfully" });

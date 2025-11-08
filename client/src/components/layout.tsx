@@ -24,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [accountSettingsDialogOpen, setAccountSettingsDialogOpen] = useState(false);
 
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<{ id: string; username: string; companyName?: string }>({
     queryKey: ["/api/auth/me"],
   });
 

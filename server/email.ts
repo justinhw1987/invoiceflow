@@ -87,6 +87,18 @@ export async function getUncachableResendClient() {
   };
 }
 
+function escapeHtml(text: string): string {
+  const map: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return text.replace(/[&<>"'/]/g, (char) => map[char]);
+}
+
 export async function sendInvoiceEmail(
   customerEmail: string,
   customerName: string,
@@ -99,7 +111,10 @@ export async function sendInvoiceEmail(
   try {
     const { client, fromEmail } = await getUncachableResendClient();
     
-    const senderName = companyName || 'Invoice Manager';
+    const rawSenderName = companyName || 'Invoice Manager';
+    const senderName = escapeHtml(rawSenderName);
+    const escapedCustomerName = escapeHtml(customerName);
+    const escapedService = escapeHtml(service);
     
     const html = `
       <!DOCTYPE html>
@@ -122,7 +137,7 @@ export async function sendInvoiceEmail(
               <h1>Invoice #${invoiceNumber}</h1>
             </div>
             <div class="content">
-              <p>Dear ${customerName},</p>
+              <p>Dear ${escapedCustomerName},</p>
               <p>Thank you for your business. Please find your invoice details below:</p>
               
               <div class="invoice-details">
@@ -132,7 +147,7 @@ export async function sendInvoiceEmail(
                 </div>
                 <div class="detail-row">
                   <span><strong>Service:</strong></span>
-                  <span>${service}</span>
+                  <span>${escapedService}</span>
                 </div>
                 <div class="detail-row">
                   <span><strong>Amount:</strong></span>
@@ -154,7 +169,7 @@ export async function sendInvoiceEmail(
     await client.emails.send({
       from: fromEmail,
       to: customerEmail,
-      subject: `Invoice #${invoiceNumber} from ${senderName}`,
+      subject: `Invoice #${invoiceNumber} from ${rawSenderName}`,
       html,
     });
 
