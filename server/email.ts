@@ -1,9 +1,10 @@
-// Reference: resend integration blueprint
+// Resend email integration
+// Supports both Railway (environment variables) and Replit (connector integration)
 import { Resend } from 'resend';
 
 let connectionSettings: any;
 
-async function getCredentials() {
+async function getCredentialsFromReplit() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
@@ -29,6 +30,37 @@ async function getCredentials() {
     throw new Error('Resend not connected');
   }
   return {apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email};
+}
+
+async function getCredentials() {
+  // First, try to use environment variables (Railway/standard setup)
+  const hasApiKey = !!process.env.RESEND_API_KEY;
+  const hasFromEmail = !!process.env.FROM_EMAIL;
+  
+  // If either is set, both must be set
+  if (hasApiKey || hasFromEmail) {
+    if (!hasApiKey || !hasFromEmail) {
+      throw new Error('Both RESEND_API_KEY and FROM_EMAIL environment variables must be set together');
+    }
+    return {
+      apiKey: process.env.RESEND_API_KEY!,
+      fromEmail: process.env.FROM_EMAIL!
+    };
+  }
+  
+  // Check if Replit connector environment is available
+  const hasReplitEnv = process.env.REPLIT_CONNECTORS_HOSTNAME && 
+                       (process.env.REPL_IDENTITY || process.env.WEB_REPL_RENEWAL);
+  
+  if (!hasReplitEnv) {
+    throw new Error(
+      'Resend credentials not configured. Please set RESEND_API_KEY and FROM_EMAIL environment variables, ' +
+      'or configure Replit connector integration.'
+    );
+  }
+  
+  // Fall back to Replit connector integration
+  return getCredentialsFromReplit();
 }
 
 export async function getUncachableResendClient() {
