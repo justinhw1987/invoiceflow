@@ -8,10 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FileText, LogOut, User, Settings } from "lucide-react";
+import { FileText, LogOut, User, Settings, KeyRound } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PasswordChangeDialog } from "@/components/password-change-dialog";
+import { AccountSettingsDialog } from "@/components/account-settings-dialog";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ export function Layout({ children }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [accountSettingsDialogOpen, setAccountSettingsDialogOpen] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ["/api/auth/me"],
@@ -92,9 +94,13 @@ export function Layout({ children }: LayoutProps) {
                   <User className="mr-2 h-4 w-4" />
                   <span>{user?.username || "User"}</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)} data-testid="button-account-settings">
+                <DropdownMenuItem onClick={() => setAccountSettingsDialogOpen(true)} data-testid="menu-account-settings">
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Account Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)} data-testid="menu-change-password">
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  <span>Change Password</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
                   <LogOut className="mr-2 h-4 w-4" />
@@ -110,6 +116,10 @@ export function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
+      <AccountSettingsDialog
+        open={accountSettingsDialogOpen}
+        onOpenChange={setAccountSettingsDialogOpen}
+      />
       <PasswordChangeDialog
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
