@@ -6,8 +6,8 @@ import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
-import { addInvoiceToSheet, updateInvoiceInSheet } from "./google-sheets";
 import { sendInvoiceEmail } from "./email";
+import * as XLSX from "xlsx";
 
 declare module "express-session" {
   interface SessionData {
@@ -221,26 +221,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoiceNumber,
       });
 
-      // Add to Google Sheets
-      try {
-        const rowId = await addInvoiceToSheet({
-          invoiceNumber: invoice.invoiceNumber,
-          customerName: customer.name,
-          date: invoice.date,
-          service: invoice.service,
-          amount: invoice.amount,
-          isPaid: invoice.isPaid,
-        });
-
-        // Update invoice with sheet row ID
-        if (rowId) {
-          await storage.updateInvoice(invoice.id, { googleSheetRowId: rowId });
-        }
-      } catch (sheetError) {
-        console.error("Failed to add invoice to Google Sheet:", sheetError);
-        // Continue anyway - invoice is created in DB
-      }
-
       res.json(invoice);
     } catch (error) {
       console.error("Invoice creation error:", error);
@@ -258,16 +238,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updated = await storage.updateInvoice(req.params.id, { isPaid });
-
-      // Update Google Sheet
-      if (updated && updated.googleSheetRowId) {
-        try {
-          await updateInvoiceInSheet(updated.googleSheetRowId, isPaid);
-        } catch (sheetError) {
-          console.error("Failed to update Google Sheet:", sheetError);
-          // Continue anyway - invoice is updated in DB
-        }
-      }
 
       res.json(updated);
     } catch (error) {
@@ -296,6 +266,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Email sending error:", error);
       res.status(500).json({ message: "Failed to send invoice email" });
+    }
+  });
+
+  app.get("/api/invoices/export", requireAuth, async (req, res) => {
+    try {
+      const invoices = await storage.getInvoices(req.session.userId!);
+      
+      // Prepare data for Excel export
+      const exportData = invoices.map(invoice => ({
+        'Invoice Number': invoice.invoiceNumber,
+        'Customer Name': invoice.customer?.name || 'N/A',
+        'Customer Email': invoice.customer?.email || 'N/A',
+        'Date': new Date(invoice.date).toLocaleDateString(),
+        'Service': invoice.service,
+        'Amount': `$${parseFloat(invoice.amount).toFixed(2)}`,
+        'Status': invoice.isPaid ? 'Paid' : 'Unpaid',
+      }));
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 15 }, // Invoice Number
+        { wch: 25 }, // Customer Name
+        { wch: 30 }, // Customer Email
+        { wch: 12 }, // Date
+        { wch: 40 }, // Service
+        { wch: 12 }, // Amount
+        { wch: 10 }, // Status
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
+
+      // Generate buffer
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      // Set headers for file download
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=invoices-${timestamp}.xlsx`);
+      
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error("Export error:", error);
+      res.status(500).json({ message: "Failed to export invoices" });
     }
   });
 

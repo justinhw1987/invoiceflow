@@ -30,7 +30,7 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({
         title: "Invoice updated",
-        description: "Payment status updated and synced to Google Sheets",
+        description: "Payment status has been updated successfully",
       });
     },
     onError: () => {
@@ -72,6 +72,40 @@ export default function Invoices() {
     emailMutation.mutate(invoice.id);
   };
 
+  const handleExport = async () => {
+    try {
+      const response = await fetch('/api/invoices/export', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export invoices');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoices-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export successful",
+        description: "Your invoices have been exported to Excel",
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to export invoices",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -81,10 +115,21 @@ export default function Invoices() {
             Track and manage all your invoices
           </p>
         </div>
-        <Button onClick={() => setLocation("/invoices/new")} data-testid="button-create-invoice">
-          <Plus className="h-4 w-4 mr-2" />
-          Create Invoice
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={!invoices || invoices.length === 0}
+            data-testid="button-export-invoices"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export to Excel
+          </Button>
+          <Button onClick={() => setLocation("/invoices/new")} data-testid="button-create-invoice">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
       <Card>
