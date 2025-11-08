@@ -30,12 +30,21 @@ export const invoices = pgTable("invoices", {
   customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   invoiceNumber: integer("invoice_number").notNull(),
   date: text("date").notNull(),
-  service: text("service").notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  service: text("service"),
+  amount: decimal("amount", { precision: 10, scale: 2 }),
   isPaid: boolean("is_paid").notNull().default(false),
   googleSheetRowId: text("google_sheet_row_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Invoice Items table (line items for each invoice)
+export const invoiceItems = pgTable("invoice_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Relations
@@ -52,7 +61,7 @@ export const customersRelations = relations(customers, ({ one, many }) => ({
   invoices: many(invoices),
 }));
 
-export const invoicesRelations = relations(invoices, ({ one }) => ({
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   user: one(users, {
     fields: [invoices.userId],
     references: [users.id],
@@ -60,6 +69,14 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
   customer: one(customers, {
     fields: [invoices.customerId],
     references: [customers.id],
+  }),
+  items: many(invoiceItems),
+}));
+
+export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoiceItems.invoiceId],
+    references: [invoices.id],
   }),
 }));
 
@@ -81,6 +98,14 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
   googleSheetRowId: true,
   createdAt: true,
   updatedAt: true,
+  service: true,
+  amount: true,
+});
+
+export const insertInvoiceItemSchema = createInsertSchema(invoiceItems).omit({
+  id: true,
+  invoiceId: true,
+  createdAt: true,
 });
 
 // Password change schema with validation
@@ -103,6 +128,11 @@ export const updateProfileSchema = z.object({
   companyName: z.string().min(1, "Company name is required").max(255, "Company name is too long"),
 });
 
+// Schema for creating invoice with items
+export const createInvoiceWithItemsSchema = insertInvoiceSchema.extend({
+  items: z.array(insertInvoiceItemSchema).min(1, "At least one line item is required"),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -112,6 +142,11 @@ export type Customer = typeof customers.$inferSelect;
 
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
+
+export type InsertInvoiceItem = z.infer<typeof insertInvoiceItemSchema>;
+export type InvoiceItem = typeof invoiceItems.$inferSelect;
+
+export type CreateInvoiceWithItems = z.infer<typeof createInvoiceWithItemsSchema>;
 
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

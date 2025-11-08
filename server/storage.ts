@@ -1,5 +1,5 @@
 // Reference: javascript_database integration blueprint
-import { users, customers, invoices, type User, type InsertUser, type Customer, type InsertCustomer, type Invoice, type InsertInvoice } from "@shared/schema";
+import { users, customers, invoices, invoiceItems, type User, type InsertUser, type Customer, type InsertCustomer, type Invoice, type InsertInvoice, type InvoiceItem, type InsertInvoiceItem, type CreateInvoiceWithItems } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
@@ -22,8 +22,10 @@ export interface IStorage {
   getInvoices(userId: string): Promise<any[]>;
   getInvoice(id: string): Promise<any | undefined>;
   createInvoice(invoice: InsertInvoice & { userId: string; invoiceNumber: number }): Promise<Invoice>;
+  createInvoiceWithItems(invoice: CreateInvoiceWithItems & { userId: string; invoiceNumber: number }): Promise<Invoice>;
   updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice | undefined>;
   getNextInvoiceNumber(userId: string): Promise<number>;
+  getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -115,7 +117,23 @@ export class DatabaseStorage implements IStorage {
       .where(eq(invoices.userId, userId))
       .orderBy(desc(invoices.createdAt));
 
-    return results;
+    // Fetch items for each invoice
+    const invoicesWithItems = await Promise.all(
+      results.map(async (invoice) => {
+        const items = await this.getInvoiceItems(invoice.id);
+        // Calculate total from items if they exist
+        const total = items.length > 0 
+          ? items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2)
+          : invoice.amount;
+        return {
+          ...invoice,
+          items,
+          amount: total,
+        };
+      })
+    );
+
+    return invoicesWithItems;
   }
 
   async getInvoice(id: string): Promise<any | undefined> {
@@ -138,7 +156,20 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(customers, eq(invoices.customerId, customers.id))
       .where(eq(invoices.id, id));
 
-    return result || undefined;
+    if (!result) return undefined;
+
+    // Fetch items for the invoice
+    const items = await this.getInvoiceItems(result.id);
+    // Calculate total from items if they exist
+    const total = items.length > 0 
+      ? items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2)
+      : result.amount;
+
+    return {
+      ...result,
+      items,
+      amount: total,
+    };
   }
 
   async createInvoice(invoice: InsertInvoice & { userId: string; invoiceNumber: number }): Promise<Invoice> {
@@ -158,6 +189,28 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async createInvoiceWithItems(invoice: CreateInvoiceWithItems & { userId: string; invoiceNumber: number }): Promise<Invoice> {
+    const { items, ...invoiceData } = invoice;
+    
+    // Create invoice
+    const [newInvoice] = await db
+      .insert(invoices)
+      .values(invoiceData)
+      .returning();
+
+    // Create invoice items
+    if (items && items.length > 0) {
+      await db
+        .insert(invoiceItems)
+        .values(items.map(item => ({
+          ...item,
+          invoiceId: newInvoice.id,
+        })));
+    }
+
+    return newInvoice;
+  }
+
   async getNextInvoiceNumber(userId: string): Promise<number> {
     const userInvoices = await db
       .select({ invoiceNumber: invoices.invoiceNumber })
@@ -167,6 +220,13 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return userInvoices.length > 0 ? userInvoices[0].invoiceNumber + 1 : 1001;
+  }
+
+  async getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
+    return await db
+      .select()
+      .from(invoiceItems)
+      .where(eq(invoiceItems.invoiceId, invoiceId));
   }
 }
 
