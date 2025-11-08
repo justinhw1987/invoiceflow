@@ -47,6 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.post("/api/auth/login", async (req, res) => {
     try {
+      console.log('Login request body:', req.body);
       const { username, password } = insertUserSchema.parse(req.body);
       
       const user = await storage.getUserByUsername(username);
@@ -62,6 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
       res.json({ ok: true, user: { id: user.id, username: user.username } });
     } catch (error) {
+      console.error('Login validation error:', error);
       res.status(400).json({ ok: false, message: "Invalid request" });
     }
   });
