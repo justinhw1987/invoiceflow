@@ -9,6 +9,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
+  updateUserProfile(userId: string, data: { companyName: string }): Promise<User | undefined>;
 
   // Customer methods
   getCustomers(userId: string): Promise<Customer[]>;
@@ -50,6 +51,15 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ password: hashedPassword })
       .where(eq(users.id, userId));
+  }
+
+  async updateUserProfile(userId: string, data: { companyName: string }): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ companyName: data.companyName })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated || undefined;
   }
 
   // Customer methods
