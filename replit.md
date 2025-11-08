@@ -11,6 +11,7 @@ This is a professional invoice management system built with React, Express, and 
 - Invoice generation with sequential numbering and PDF preview
 - Payment status tracking with Excel export capability
 - Automated email delivery of invoices to customers via Resend
+- Customizable company name in account settings (used in outbound emails)
 - Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
 - Responsive design following Material Design principles with Linear-inspired aesthetics
@@ -50,7 +51,7 @@ Preferred communication style: Simple, everyday language.
 
 **API Structure:**
 - RESTful endpoints under `/api` prefix
-- Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password
+- Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password, PATCH /api/auth/update-profile
 - Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
 - Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/export, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
 - **Note:** Specific routes (like /export) are placed before parameterized routes (like /:id) to prevent route matching conflicts
@@ -81,6 +82,7 @@ users
   - id (UUID, primary key)
   - username (text, unique)
   - password (text, bcrypt hashed)
+  - companyName (text, nullable)
 
 customers
   - id (UUID, primary key)
@@ -119,8 +121,10 @@ invoices
 - Dynamic credential retrieval using REPLIT_CONNECTORS_HOSTNAME
 - Authentication via REPL_IDENTITY or WEB_REPL_RENEWAL tokens
 - Uncachable client pattern (getUncachableResendClient) to handle credential rotation
-- Sends invoice details in plain text email format
+- Sends invoice details in HTML email format
 - Configured with from_email and api_key from connector settings
+- Uses user's company name if set, otherwise defaults to "Invoice Manager"
+- **Security:** All user-controlled fields (companyName, customerName, service) are HTML-escaped to prevent injection attacks
 
 **Excel Export: xlsx Library**
 - Client-side download of invoice data in Excel format (.xlsx)
