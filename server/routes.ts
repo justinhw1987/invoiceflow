@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -91,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ id: user.id, username: user.username });
+    res.json({ id: user.id, username: user.username, companyName: user.companyName });
   });
 
   app.post("/api/auth/change-password", requireAuth, async (req, res) => {
@@ -129,6 +129,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Password change error:", error);
+      res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  app.patch("/api/auth/update-profile", requireAuth, async (req, res) => {
+    try {
+      const { companyName } = updateProfileSchema.parse(req.body);
+      
+      const updatedUser = await storage.updateUserProfile(req.session.userId!, { companyName });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ 
+        id: updatedUser.id, 
+        username: updatedUser.username,
+        companyName: updatedUser.companyName,
+        message: "Profile updated successfully" 
+      });
+    } catch (error) {
+      console.error("Profile update error:", error);
       res.status(400).json({ message: "Invalid request" });
     }
   });
