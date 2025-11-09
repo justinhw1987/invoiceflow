@@ -238,14 +238,14 @@ export async function sendInvoiceEmail(
     // Convert PDF buffer to base64 for email attachment
     const pdfBase64 = pdfBuffer.toString('base64');
 
-    // Generate item rows for email
+    // Generate item rows for email using table layout (more reliable across email clients)
     const itemRows = invoiceItems.map(item => {
       const escapedDescription = escapeHtml(item.description);
       return `
-        <div class="detail-row">
-          <span>${escapedDescription}</span>
-          <span>$${parseFloat(item.amount).toFixed(2)}</span>
-        </div>
+        <tr>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: left;">${escapedDescription}</td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; white-space: nowrap;">$${parseFloat(item.amount).toFixed(2)}</td>
+        </tr>
       `;
     }).join('');
 
@@ -259,8 +259,9 @@ export async function sendInvoiceEmail(
             .header { background: #3b82f6; color: white; padding: 20px; text-align: center; }
             .content { padding: 30px; background: #f9fafb; }
             .invoice-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-            .total-row { display: flex; justify-content: space-between; padding: 15px 0; margin-top: 10px; border-top: 2px solid #3b82f6; }
+            .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .table-header { background: #f3f4f6; font-weight: bold; }
+            .total-row { border-top: 2px solid #3b82f6; }
             .total { font-size: 24px; font-weight: bold; color: #3b82f6; }
             .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
           </style>
@@ -275,18 +276,30 @@ export async function sendInvoiceEmail(
               <p>Thank you for your business. Please find your invoice attached as a PDF.</p>
               
               <div class="invoice-details">
-                <div class="detail-row">
-                  <span><strong>Invoice Date:</strong></span>
-                  <span>${new Date(date).toLocaleDateString()}</span>
-                </div>
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                  <strong>Items:</strong>
-                </div>
-                ${itemRows}
-                <div class="total-row">
-                  <span><strong>Total:</strong></span>
-                  <span class="total">$${parseFloat(amount).toFixed(2)}</span>
-                </div>
+                <table style="width: 100%; margin-bottom: 15px;">
+                  <tr>
+                    <td style="padding: 8px 0;"><strong>Invoice Date:</strong></td>
+                    <td style="padding: 8px 0; text-align: right;">${new Date(date).toLocaleDateString()}</td>
+                  </tr>
+                </table>
+                
+                <table class="invoice-table">
+                  <thead>
+                    <tr class="table-header">
+                      <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #d1d5db;">Description</th>
+                      <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemRows}
+                  </tbody>
+                  <tfoot>
+                    <tr class="total-row">
+                      <td style="padding: 15px 8px; text-align: left;"><strong>Total:</strong></td>
+                      <td style="padding: 15px 8px; text-align: right;"><span class="total">$${parseFloat(amount).toFixed(2)}</span></td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
               
               <p>If you have any questions about this invoice, please don't hesitate to contact us.</p>

@@ -125,12 +125,14 @@ invoices
 - Authentication via REPL_IDENTITY or WEB_REPL_RENEWAL tokens
 - Uncachable client pattern (getUncachableResendClient) to handle credential rotation
 - Sends invoice details in HTML email format with PDF attachment
+- Email body uses HTML table layout (not flexbox) for reliable rendering across all email clients
+- Table format mirrors PDF layout: description column (left-aligned), amount column (right-aligned)
 - PDF generation using pdfkit library with professional formatting
-- PDF includes company name, customer details, invoice number, date, service, and amount
+- PDF includes company name, customer details, invoice number, date, line items, and total
 - PDF attached to email as `invoice-{invoiceNumber}.pdf` (base64 encoded)
 - Configured with from_email and api_key from connector settings
 - Uses user's company name if set, otherwise defaults to "Invoice Manager"
-- **Security:** All user-controlled fields (companyName, customerName, service) are HTML-escaped to prevent injection attacks
+- **Security:** All user-controlled fields (companyName, customerName, descriptions) are HTML-escaped to prevent injection attacks
 
 **Excel Export: xlsx Library**
 - Client-side download of invoice data in Excel format (.xlsx)
