@@ -38,40 +38,35 @@ export default function CreateInvoice() {
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("POST", "/api/invoices", data);
+      const response = await apiRequest("POST", "/api/invoices", data);
+      return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (invoice: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({
-        title: "Invoice created",
-        description: "Invoice has been saved and synced to Google Sheets",
-      });
+      
+      // Automatically send email after creating invoice
+      if (invoice?.id) {
+        try {
+          await apiRequest("POST", `/api/invoices/${invoice.id}/email`, undefined);
+          toast({
+            title: "Invoice created and sent",
+            description: "Invoice has been saved and emailed to the customer",
+          });
+        } catch (error) {
+          toast({
+            title: "Invoice created",
+            description: "Invoice saved, but failed to send email. You can resend from the invoices page.",
+            variant: "destructive",
+          });
+        }
+      }
+      
       setLocation("/invoices");
     },
     onError: () => {
       toast({
         title: "Error",
         description: "Failed to create invoice",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const emailMutation = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      return await apiRequest("POST", `/api/invoices/${invoiceId}/email`, undefined);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Invoice sent",
-        description: "Invoice has been emailed to the customer",
-      });
-      setLocation("/invoices");
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to send invoice email",
         variant: "destructive",
       });
     },
@@ -113,23 +108,7 @@ export default function CreateInvoice() {
     setShowPreview(true);
   };
 
-  const handleSaveAndEmail = async () => {
-    const result: any = await createMutation.mutateAsync({
-      customerId,
-      date,
-      items: items.map(item => ({
-        description: item.description,
-        amount: item.amount,
-      })),
-      isPaid: false,
-    });
-
-    if (result?.id) {
-      emailMutation.mutate(result.id);
-    }
-  };
-
-  const handleSaveDraft = () => {
+  const handleSaveInvoice = () => {
     createMutation.mutate({
       customerId,
       date,
@@ -193,20 +172,12 @@ export default function CreateInvoice() {
               </div>
               <div className="flex gap-3 pt-4">
                 <Button
-                  onClick={handleSaveAndEmail}
-                  disabled={createMutation.isPending || emailMutation.isPending}
-                  className="flex-1"
-                  data-testid="button-send-invoice"
-                >
-                  {emailMutation.isPending ? "Sending..." : "Send Invoice"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSaveDraft}
+                  onClick={handleSaveInvoice}
                   disabled={createMutation.isPending}
-                  data-testid="button-save-draft"
+                  className="flex-1"
+                  data-testid="button-save-invoice"
                 >
-                  Save Draft
+                  {createMutation.isPending ? "Saving..." : "Save & Send Invoice"}
                 </Button>
               </div>
             </CardContent>

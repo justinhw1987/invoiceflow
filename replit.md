@@ -11,7 +11,8 @@ This is a professional invoice management system built with React, Express, and 
 - Invoice generation with sequential numbering and PDF preview
 - PDF download functionality available in both invoice table and invoice view dialog
 - Payment status tracking with Excel export capability
-- Automated email delivery of invoices to customers via Resend
+- Automatic email delivery of invoices to customers via Resend when created
+- Manual email resend option available from invoices page
 - Customizable company name in account settings (used in outbound emails and PDFs)
 - Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
