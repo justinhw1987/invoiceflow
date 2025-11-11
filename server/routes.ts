@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema, createInvoiceWithItemsSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema, createInvoiceWithItemsSchema, createRecurringInvoiceWithItemsSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -418,6 +418,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Recurring Invoice routes
+  app.get("/api/recurring-invoices", requireAuth, async (req, res) => {
+    try {
+      const recurringInvoices = await storage.getRecurringInvoices(req.session.userId!);
+      res.json(recurringInvoices);
+    } catch (error) {
+      console.error("Failed to fetch recurring invoices:", error);
+      res.status(500).json({ message: "Failed to fetch recurring invoices" });
+    }
+  });
+
+  app.get("/api/recurring-invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const recurringInvoice = await storage.getRecurringInvoice(req.params.id);
+      
+      if (!recurringInvoice) {
+        return res.status(404).json({ message: "Recurring invoice not found" });
+      }
+      
+      res.json(recurringInvoice);
+    } catch (error) {
+      console.error("Failed to fetch recurring invoice:", error);
+      res.status(500).json({ message: "Failed to fetch recurring invoice" });
+    }
+  });
+
+  app.post("/api/recurring-invoices", requireAuth, async (req, res) => {
+    try {
+      const recurringInvoiceData = createRecurringInvoiceWithItemsSchema.parse(req.body);
+      
+      // Verify customer exists
+      const customer = await storage.getCustomer(recurringInvoiceData.customerId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      const recurringInvoice = await storage.createRecurringInvoiceWithItems({
+        ...recurringInvoiceData,
+        userId: req.session.userId!,
+      });
+
+      res.json(recurringInvoice);
+    } catch (error) {
+      console.error("Recurring invoice creation error:", error);
+      res.status(400).json({ message: "Invalid recurring invoice data" });
+    }
+  });
+
+  app.patch("/api/recurring-invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const recurringInvoice = await storage.getRecurringInvoice(req.params.id);
+      
+      if (!recurringInvoice) {
+        return res.status(404).json({ message: "Recurring invoice not found" });
+      }
+
+      const updated = await storage.updateRecurringInvoice(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update recurring invoice:", error);
+      res.status(500).json({ message: "Failed to update recurring invoice" });
+    }
+  });
+
+  app.delete("/api/recurring-invoices/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteRecurringInvoice(req.params.id);
+      res.json({ message: "Recurring invoice deleted" });
+    } catch (error) {
+      console.error("Failed to delete recurring invoice:", error);
+      res.status(500).json({ message: "Failed to delete recurring invoice" });
+    }
+  });
+
+  app.post("/api/recurring-invoices/:id/generate", requireAuth, async (req, res) => {
+    try {
+      const recurringInvoice = await storage.getRecurringInvoice(req.params.id);
+      
+      if (!recurringInvoice || !recurringInvoice.customer) {
+        return res.status(404).json({ message: "Recurring invoice not found" });
+      }
+
+      if (!recurringInvoice.isActive) {
+        return res.status(400).json({ message: "Recurring invoice is not active" });
+      }
+
+      // Get next invoice number
+      const invoiceNumber = await storage.getNextInvoiceNumber(req.session.userId!);
+      
+      // Create invoice from recurring template
+      const currentDate = new Date().toISOString().split('T')[0];
+      const invoice = await storage.createInvoiceWithItems({
+        customerId: recurringInvoice.customerId,
+        date: currentDate,
+        isPaid: false,
+        items: recurringInvoice.items.map((item: any) => ({
+          description: item.description,
+          amount: item.amount,
+        })),
+        userId: req.session.userId!,
+        invoiceNumber,
+      });
+
+      // Update recurring invoice with next invoice date
+      const nextDate = calculateNextInvoiceDate(recurringInvoice.frequency, currentDate);
+      await storage.updateRecurringInvoiceNextDate(req.params.id, nextDate, currentDate);
+
+      // Send email if customer has email
+      if (recurringInvoice.customer.email) {
+        try {
+          const user = await storage.getUser(req.session.userId!);
+          await sendInvoiceEmail(
+            recurringInvoice.customer.email,
+            recurringInvoice.customer.name,
+            recurringInvoice.customer.phone,
+            recurringInvoice.customer.address,
+            invoiceNumber,
+            "", // service field not used
+            recurringInvoice.amount,
+            currentDate,
+            user?.companyName || undefined,
+            recurringInvoice.items.map((item: any) => ({
+              description: item.description,
+              amount: item.amount,
+            }))
+          );
+        } catch (emailError) {
+          console.error("Email sending error:", emailError);
+          // Don't fail the request if email fails
+        }
+      }
+
+      res.json(invoice);
+    } catch (error) {
+      console.error("Failed to generate invoice:", error);
+      res.status(500).json({ message: "Failed to generate invoice" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function to calculate next invoice date based on frequency
+function calculateNextInvoiceDate(frequency: string, currentDate: string): string {
+  const date = new Date(currentDate);
+  
+  switch (frequency) {
+    case 'weekly':
+      date.setDate(date.getDate() + 7);
+      break;
+    case 'monthly':
+      date.setMonth(date.getMonth() + 1);
+      break;
+    case 'quarterly':
+      date.setMonth(date.getMonth() + 3);
+      break;
+    case 'yearly':
+      date.setFullYear(date.getFullYear() + 1);
+      break;
+  }
+  
+  return date.toISOString().split('T')[0];
 }
