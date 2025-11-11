@@ -1,5 +1,5 @@
 // Reference: javascript_database integration blueprint
-import { users, customers, invoices, invoiceItems, type User, type InsertUser, type Customer, type InsertCustomer, type Invoice, type InsertInvoice, type InvoiceItem, type InsertInvoiceItem, type CreateInvoiceWithItems } from "@shared/schema";
+import { users, customers, invoices, invoiceItems, recurringInvoices, recurringInvoiceItems, type User, type InsertUser, type Customer, type InsertCustomer, type Invoice, type InsertInvoice, type InvoiceItem, type InsertInvoiceItem, type CreateInvoiceWithItems, type RecurringInvoice, type InsertRecurringInvoice, type RecurringInvoiceItem, type InsertRecurringInvoiceItem, type CreateRecurringInvoiceWithItems } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
@@ -26,6 +26,15 @@ export interface IStorage {
   updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice | undefined>;
   getNextInvoiceNumber(userId: string): Promise<number>;
   getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
+
+  // Recurring Invoice methods
+  getRecurringInvoices(userId: string): Promise<any[]>;
+  getRecurringInvoice(id: string): Promise<any | undefined>;
+  createRecurringInvoiceWithItems(recurringInvoice: CreateRecurringInvoiceWithItems & { userId: string }): Promise<RecurringInvoice>;
+  updateRecurringInvoice(id: string, data: Partial<InsertRecurringInvoice>): Promise<RecurringInvoice | undefined>;
+  deleteRecurringInvoice(id: string): Promise<void>;
+  getRecurringInvoiceItems(recurringInvoiceId: string): Promise<RecurringInvoiceItem[]>;
+  updateRecurringInvoiceNextDate(id: string, nextDate: string, lastDate: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -227,6 +236,136 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(invoiceItems)
       .where(eq(invoiceItems.invoiceId, invoiceId));
+  }
+
+  // Recurring Invoice methods
+  async getRecurringInvoices(userId: string): Promise<any[]> {
+    const results = await db
+      .select({
+        id: recurringInvoices.id,
+        userId: recurringInvoices.userId,
+        customerId: recurringInvoices.customerId,
+        name: recurringInvoices.name,
+        frequency: recurringInvoices.frequency,
+        startDate: recurringInvoices.startDate,
+        endDate: recurringInvoices.endDate,
+        nextInvoiceDate: recurringInvoices.nextInvoiceDate,
+        lastInvoiceDate: recurringInvoices.lastInvoiceDate,
+        isActive: recurringInvoices.isActive,
+        createdAt: recurringInvoices.createdAt,
+        updatedAt: recurringInvoices.updatedAt,
+        customer: customers,
+      })
+      .from(recurringInvoices)
+      .leftJoin(customers, eq(recurringInvoices.customerId, customers.id))
+      .where(eq(recurringInvoices.userId, userId))
+      .orderBy(desc(recurringInvoices.createdAt));
+
+    // Fetch items for each recurring invoice
+    const recurringInvoicesWithItems = await Promise.all(
+      results.map(async (recInvoice) => {
+        const items = await this.getRecurringInvoiceItems(recInvoice.id);
+        // Calculate total from items
+        const total = items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2);
+        return {
+          ...recInvoice,
+          items,
+          amount: total,
+        };
+      })
+    );
+
+    return recurringInvoicesWithItems;
+  }
+
+  async getRecurringInvoice(id: string): Promise<any | undefined> {
+    const [result] = await db
+      .select({
+        id: recurringInvoices.id,
+        userId: recurringInvoices.userId,
+        customerId: recurringInvoices.customerId,
+        name: recurringInvoices.name,
+        frequency: recurringInvoices.frequency,
+        startDate: recurringInvoices.startDate,
+        endDate: recurringInvoices.endDate,
+        nextInvoiceDate: recurringInvoices.nextInvoiceDate,
+        lastInvoiceDate: recurringInvoices.lastInvoiceDate,
+        isActive: recurringInvoices.isActive,
+        createdAt: recurringInvoices.createdAt,
+        updatedAt: recurringInvoices.updatedAt,
+        customer: customers,
+      })
+      .from(recurringInvoices)
+      .leftJoin(customers, eq(recurringInvoices.customerId, customers.id))
+      .where(eq(recurringInvoices.id, id));
+
+    if (!result) return undefined;
+
+    // Fetch items for the recurring invoice
+    const items = await this.getRecurringInvoiceItems(result.id);
+    // Calculate total from items
+    const total = items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2);
+
+    return {
+      ...result,
+      items,
+      amount: total,
+    };
+  }
+
+  async createRecurringInvoiceWithItems(recurringInvoice: CreateRecurringInvoiceWithItems & { userId: string }): Promise<RecurringInvoice> {
+    const { items, ...recurringInvoiceData } = recurringInvoice;
+    
+    // Set nextInvoiceDate to startDate initially
+    const dataWithNextDate = {
+      ...recurringInvoiceData,
+      nextInvoiceDate: recurringInvoiceData.startDate,
+    };
+
+    // Create recurring invoice
+    const [newRecurringInvoice] = await db
+      .insert(recurringInvoices)
+      .values(dataWithNextDate)
+      .returning();
+
+    // Create recurring invoice items
+    if (items && items.length > 0) {
+      await db
+        .insert(recurringInvoiceItems)
+        .values(items.map(item => ({
+          ...item,
+          recurringInvoiceId: newRecurringInvoice.id,
+        })));
+    }
+
+    return newRecurringInvoice;
+  }
+
+  async updateRecurringInvoice(id: string, data: Partial<InsertRecurringInvoice>): Promise<RecurringInvoice | undefined> {
+    const [updated] = await db
+      .update(recurringInvoices)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(recurringInvoices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteRecurringInvoice(id: string): Promise<void> {
+    await db.delete(recurringInvoices).where(eq(recurringInvoices.id, id));
+  }
+
+  async getRecurringInvoiceItems(recurringInvoiceId: string): Promise<RecurringInvoiceItem[]> {
+    return await db
+      .select()
+      .from(recurringInvoiceItems)
+      .where(eq(recurringInvoiceItems.recurringInvoiceId, recurringInvoiceId));
+  }
+
+  async updateRecurringInvoiceNextDate(id: string, nextDate: string, lastDate: string): Promise<void> {
+    await db
+      .update(recurringInvoices)
+      .set({ nextInvoiceDate: nextDate, lastInvoiceDate: lastDate, updatedAt: new Date() })
+      .where(eq(recurringInvoices.id, id));
   }
 }
 
