@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Mail, Download, Eye } from "lucide-react";
+import { Plus, Mail, Download, Eye, RefreshCcw } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Invoice, Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -217,16 +217,28 @@ export default function Invoices() {
                       </td>
                       <td className="py-4 px-4 text-sm">{invoice.service}</td>
                       <td className="py-4 px-4 text-right font-medium">
-                        ${parseFloat(invoice.amount).toFixed(2)}
+                        ${parseFloat(invoice.amount || "0").toFixed(2)}
                       </td>
                       <td className="py-4 px-4 text-center">
-                        <Badge
-                          variant={invoice.isPaid ? "default" : "secondary"}
-                          className="rounded-full"
-                          data-testid={`badge-status-${invoice.id}`}
-                        >
-                          {invoice.isPaid ? "Paid" : "Unpaid"}
-                        </Badge>
+                        <div className="flex items-center justify-center gap-2">
+                          <Badge
+                            variant={invoice.isPaid ? "default" : "secondary"}
+                            className="rounded-full"
+                            data-testid={`badge-status-${invoice.id}`}
+                          >
+                            {invoice.isPaid ? "Paid" : "Unpaid"}
+                          </Badge>
+                          {invoice.recurringInvoiceId && (
+                            <Badge
+                              variant="outline"
+                              className="rounded-full flex items-center gap-1"
+                              data-testid={`badge-recurring-${invoice.id}`}
+                            >
+                              <RefreshCcw className="h-3 w-3" />
+                              Recurring
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-center">
                         <div className="flex justify-center">

@@ -49,6 +49,7 @@ export function Layout({ children }: LayoutProps) {
     { path: "/", label: "Dashboard" },
     { path: "/customers", label: "Customers" },
     { path: "/invoices", label: "Invoices" },
+    { path: "/recurring-invoices", label: "Recurring" },
   ];
 
   return (

@@ -511,6 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentDate = new Date().toISOString().split('T')[0];
       const invoice = await storage.createInvoiceWithItems({
         customerId: recurringInvoice.customerId,
+        recurringInvoiceId: req.params.id,
         date: currentDate,
         isPaid: false,
         items: recurringInvoice.items.map((item: any) => ({

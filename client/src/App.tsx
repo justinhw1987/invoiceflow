@@ -9,6 +9,8 @@ import Dashboard from "@/pages/dashboard";
 import Customers from "@/pages/customers";
 import Invoices from "@/pages/invoices";
 import CreateInvoice from "@/pages/create-invoice";
+import RecurringInvoices from "@/pages/recurring-invoices";
+import CreateRecurringInvoice from "@/pages/create-recurring-invoice";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -70,6 +72,20 @@ function Router() {
         <AuthGuard>
           <Layout>
             <CreateInvoice />
+          </Layout>
+        </AuthGuard>
+      </Route>
+      <Route path="/recurring-invoices">
+        <AuthGuard>
+          <Layout>
+            <RecurringInvoices />
+          </Layout>
+        </AuthGuard>
+      </Route>
+      <Route path="/recurring-invoices/new">
+        <AuthGuard>
+          <Layout>
+            <CreateRecurringInvoice />
           </Layout>
         </AuthGuard>
       </Route>
