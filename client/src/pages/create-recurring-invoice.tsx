@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,18 @@ type LineItem = {
   amount: string;
 };
 
-export default function CreateRecurringInvoice() {
+type RecurringInvoiceWithItems = {
+  id: string;
+  name: string;
+  customerId: string;
+  frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+  items: Array<{ description: string; amount: string }>;
+};
+
+export default function CreateRecurringInvoice({ id }: { id?: string }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [name, setName] = useState("");
@@ -33,27 +44,56 @@ export default function CreateRecurringInvoice() {
   const [isActive, setIsActive] = useState(true);
   const [items, setItems] = useState<LineItem[]>([{ description: "", amount: "" }]);
 
+  const isEditing = !!id;
+
   const { data: customers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
   });
 
-  const createMutation = useMutation({
+  const { data: recurringInvoice, isLoading: isLoadingInvoice } = useQuery<RecurringInvoiceWithItems>({
+    queryKey: ["/api/recurring-invoices", id],
+    enabled: isEditing,
+  });
+
+  useEffect(() => {
+    if (recurringInvoice) {
+      setName(recurringInvoice.name);
+      setCustomerId(recurringInvoice.customerId);
+      setFrequency(recurringInvoice.frequency);
+      setStartDate(recurringInvoice.startDate);
+      setEndDate(recurringInvoice.endDate || "");
+      setIsActive(recurringInvoice.isActive);
+      setItems(recurringInvoice.items.map(item => ({
+        description: item.description,
+        amount: item.amount,
+      })));
+    }
+  }, [recurringInvoice]);
+
+  const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/recurring-invoices", data);
-      return await response.json();
+      if (isEditing) {
+        const response = await apiRequest("PATCH", `/api/recurring-invoices/${id}`, data);
+        return await response.json();
+      } else {
+        const response = await apiRequest("POST", "/api/recurring-invoices", data);
+        return await response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recurring-invoices"] });
       toast({
-        title: "Recurring invoice created",
-        description: "Recurring invoice template has been saved successfully",
+        title: isEditing ? "Recurring invoice updated" : "Recurring invoice created",
+        description: isEditing 
+          ? "Recurring invoice template has been updated successfully"
+          : "Recurring invoice template has been saved successfully",
       });
       setLocation("/recurring-invoices");
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to create recurring invoice",
+        description: isEditing ? "Failed to update recurring invoice" : "Failed to create recurring invoice",
         variant: "destructive",
       });
     },
@@ -95,7 +135,7 @@ export default function CreateRecurringInvoice() {
       return;
     }
 
-    createMutation.mutate({
+    saveMutation.mutate({
       name,
       customerId,
       frequency,
@@ -109,6 +149,16 @@ export default function CreateRecurringInvoice() {
     });
   };
 
+  if (isEditing && isLoadingInvoice) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse text-muted-foreground">Loading recurring invoice...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
@@ -120,7 +170,9 @@ export default function CreateRecurringInvoice() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-3xl font-bold">Create Recurring Invoice</h1>
+        <h1 className="text-3xl font-bold">
+          {isEditing ? "Edit Recurring Invoice" : "Create Recurring Invoice"}
+        </h1>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -278,10 +330,12 @@ export default function CreateRecurringInvoice() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending}
+                disabled={saveMutation.isPending}
                 data-testid="button-save"
               >
-                {createMutation.isPending ? "Creating..." : "Create Recurring Invoice"}
+                {saveMutation.isPending 
+                  ? (isEditing ? "Updating..." : "Creating...") 
+                  : (isEditing ? "Update Recurring Invoice" : "Create Recurring Invoice")}
               </Button>
             </div>
           </CardContent>

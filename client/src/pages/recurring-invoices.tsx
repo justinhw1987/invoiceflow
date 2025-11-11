@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, RefreshCcw, Trash2, Calendar, DollarSign } from "lucide-react";
+import { Plus, RefreshCcw, Trash2, Calendar, DollarSign, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type RecurringInvoice = {
@@ -211,6 +211,15 @@ export default function RecurringInvoices() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLocation(`/recurring-invoices/${recurring.id}/edit`)}
+                          data-testid={`button-edit-${recurring.id}`}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

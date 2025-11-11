@@ -89,6 +89,15 @@ function Router() {
           </Layout>
         </AuthGuard>
       </Route>
+      <Route path="/recurring-invoices/:id/edit">
+        {(params) => (
+          <AuthGuard>
+            <Layout>
+              <CreateRecurringInvoice id={params.id} />
+            </Layout>
+          </AuthGuard>
+        )}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
