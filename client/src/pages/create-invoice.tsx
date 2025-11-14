@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import type { Customer } from "@shared/schema";
+import type { Customer, Invoice } from "@shared/schema";
 import { InvoicePreview } from "@/components/invoice-preview";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -24,41 +24,80 @@ type LineItem = {
   amount: string;
 };
 
-export default function CreateInvoice() {
+type InvoiceWithItems = Invoice & {
+  customer: Customer;
+  items: Array<{ description: string; amount: string }>;
+};
+
+export default function CreateInvoice({ id }: { id?: string }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [items, setItems] = useState<LineItem[]>([{ description: "", amount: "" }]);
   const [showPreview, setShowPreview] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+
+  const isEditing = !!id;
 
   const { data: customers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
   });
 
-  const createMutation = useMutation({
+  const { data: invoice, isLoading: isLoadingInvoice } = useQuery<InvoiceWithItems>({
+    queryKey: ["/api/invoices", id],
+    enabled: isEditing,
+  });
+
+  useEffect(() => {
+    if (invoice) {
+      setCustomerId(invoice.customerId);
+      setDate(invoice.date);
+      setIsPaid(invoice.isPaid);
+      if (invoice.items && invoice.items.length > 0) {
+        setItems(invoice.items.map(item => ({
+          description: item.description,
+          amount: item.amount,
+        })));
+      }
+    }
+  }, [invoice]);
+
+  const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/invoices", data);
-      return await response.json();
+      if (isEditing) {
+        const response = await apiRequest("PATCH", `/api/invoices/${id}`, data);
+        return await response.json();
+      } else {
+        const response = await apiRequest("POST", "/api/invoices", data);
+        return await response.json();
+      }
     },
     onSuccess: async (invoice: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       
-      // Automatically send email after creating invoice
-      if (invoice?.id) {
-        try {
-          await apiRequest("POST", `/api/invoices/${invoice.id}/email`, undefined);
-          toast({
-            title: "Invoice created and sent",
-            description: "Invoice has been saved and emailed to the customer",
-          });
-        } catch (error) {
-          toast({
-            title: "Invoice created",
-            description: "Invoice saved, but failed to send email. You can resend from the invoices page.",
-            variant: "destructive",
-          });
+      if (!isEditing) {
+        // Automatically send email only after creating new invoice
+        if (invoice?.id) {
+          try {
+            await apiRequest("POST", `/api/invoices/${invoice.id}/email`, undefined);
+            toast({
+              title: "Invoice created and sent",
+              description: "Invoice has been saved and emailed to the customer",
+            });
+          } catch (error) {
+            toast({
+              title: "Invoice created",
+              description: "Invoice saved, but failed to send email. You can resend from the invoices page.",
+              variant: "destructive",
+            });
+          }
         }
+      } else {
+        toast({
+          title: "Invoice updated",
+          description: "Invoice has been updated successfully",
+        });
       }
       
       setLocation("/invoices");
@@ -66,7 +105,7 @@ export default function CreateInvoice() {
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to create invoice",
+        description: isEditing ? "Failed to update invoice" : "Failed to create invoice",
         variant: "destructive",
       });
     },
@@ -109,14 +148,14 @@ export default function CreateInvoice() {
   };
 
   const handleSaveInvoice = () => {
-    createMutation.mutate({
+    saveMutation.mutate({
       customerId,
       date,
       items: items.map(item => ({
         description: item.description,
         amount: item.amount,
       })),
-      isPaid: false,
+      isPaid,
     });
   };
 
@@ -173,11 +212,11 @@ export default function CreateInvoice() {
               <div className="flex gap-3 pt-4">
                 <Button
                   onClick={handleSaveInvoice}
-                  disabled={createMutation.isPending}
+                  disabled={saveMutation.isPending}
                   className="flex-1"
                   data-testid="button-save-invoice"
                 >
-                  {createMutation.isPending ? "Saving..." : "Save & Send Invoice"}
+                  {saveMutation.isPending ? "Saving..." : (isEditing ? "Update Invoice" : "Save & Send Invoice")}
                 </Button>
               </div>
             </CardContent>
@@ -210,7 +249,7 @@ export default function CreateInvoice() {
 
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle className="text-2xl">Create New Invoice</CardTitle>
+          <CardTitle className="text-2xl">{isEditing ? "Edit Invoice" : "Create New Invoice"}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-6">
