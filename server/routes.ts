@@ -474,7 +474,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Recurring invoice not found" });
       }
 
-      const updated = await storage.updateRecurringInvoice(req.params.id, req.body);
+      const { items, ...invoiceData } = req.body;
+      
+      // Update recurring invoice with items if items are provided
+      const updated = items 
+        ? await storage.updateRecurringInvoiceWithItems(req.params.id, invoiceData, items)
+        : await storage.updateRecurringInvoice(req.params.id, invoiceData);
+      
       res.json(updated);
     } catch (error) {
       console.error("Failed to update recurring invoice:", error);

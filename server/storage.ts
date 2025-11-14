@@ -364,6 +364,32 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async updateRecurringInvoiceWithItems(id: string, data: Partial<InsertRecurringInvoice>, items: Array<{ description: string; amount: string }>): Promise<RecurringInvoice | undefined> {
+    // Update the recurring invoice
+    const [updated] = await db
+      .update(recurringInvoices)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(recurringInvoices.id, id))
+      .returning();
+
+    if (!updated) return undefined;
+
+    // Delete old items
+    await db.delete(recurringInvoiceItems).where(eq(recurringInvoiceItems.recurringInvoiceId, id));
+
+    // Insert new items
+    if (items && items.length > 0) {
+      await db
+        .insert(recurringInvoiceItems)
+        .values(items.map(item => ({
+          ...item,
+          recurringInvoiceId: id,
+        })));
+    }
+
+    return updated;
+  }
+
   async deleteRecurringInvoice(id: string): Promise<void> {
     await db.delete(recurringInvoices).where(eq(recurringInvoices.id, id));
   }
