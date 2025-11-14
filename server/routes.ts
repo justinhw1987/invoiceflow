@@ -328,6 +328,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const invoiceData = createInvoiceWithItemsSchema.parse(req.body);
+      
+      // Verify invoice exists and user owns it
+      const existingInvoice = await storage.getInvoice(req.params.id);
+      if (!existingInvoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      if (existingInvoice.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to edit this invoice" });
+      }
+
+      // Verify customer exists and belongs to user
+      const customer = await storage.getCustomer(invoiceData.customerId);
+      if (!customer || customer.userId !== req.session.userId) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // Calculate total amount from items
+      const totalAmount = invoiceData.items
+        .reduce((sum, item) => sum + parseFloat(item.amount), 0)
+        .toFixed(2);
+
+      // Update invoice with items
+      const updated = await storage.updateInvoiceWithItems(
+        req.params.id,
+        {
+          customerId: invoiceData.customerId,
+          date: invoiceData.date,
+          amount: totalAmount,
+          isPaid: invoiceData.isPaid,
+        },
+        invoiceData.items
+      );
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Invoice update error:", error);
+      res.status(400).json({ message: "Invalid invoice data" });
+    }
+  });
+
   app.patch("/api/invoices/:id/mark-paid", requireAuth, async (req, res) => {
     try {
       const { isPaid } = req.body;
