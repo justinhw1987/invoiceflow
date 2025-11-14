@@ -9,10 +9,12 @@ This is a professional invoice management system built with React, Express, and 
 **Key Features:**
 - Customer relationship management (CRM) with full CRUD operations
 - Invoice generation with sequential numbering and PDF preview
+- **Invoice editing:** Update invoice details, customer, date, and line items after creation
+- **Invoice deletion:** Delete invoices with confirmation dialog and warnings for paid/recurring invoices
 - PDF download functionality available in both invoice table and invoice view dialog
 - Payment status tracking with Excel export capability
 - Automatic email delivery of invoices to customers via Resend when created
-- Manual email resend option available from invoices page
+- Manual email resend option available from invoices page (resends PDF to customer)
 - Customizable company name in account settings (used in outbound emails and PDFs)
 - Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
@@ -38,8 +40,9 @@ Preferred communication style: Simple, everyday language.
 **Routing:**
 - Client-side routing with Wouter (lightweight alternative to React Router)
 - Route protection via AuthGuard component that checks session validity
-- Routes: /login, / (dashboard), /customers, /invoices, /invoices/new
+- Routes: /login, / (dashboard), /customers, /invoices, /invoices/new, /invoices/:id/edit
 - Invoice viewing handled via modal dialog (InvoiceViewDialog) rather than separate detail route
+- Invoice editing reuses CreateInvoice component with edit mode (pre-populates form, changes title/buttons)
 
 **Design System:**
 - Typography: Inter font family from Google Fonts
@@ -56,7 +59,8 @@ Preferred communication style: Simple, everyday language.
 - RESTful endpoints under `/api` prefix
 - Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password, PATCH /api/auth/update-profile
 - Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
-- Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/export, GET /api/invoices/:id/download, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/:id, PATCH /api/invoices/:id, DELETE /api/invoices/:id, GET /api/invoices/export, GET /api/invoices/:id/download, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- **Invoice edit/delete:** PATCH and DELETE endpoints validate ownership, PATCH atomically updates invoice and replaces line items, DELETE includes safeguards for paid/recurring invoices
 - **Note:** Specific routes (like /export and /download) are placed before parameterized routes (like /:id) to prevent route matching conflicts
 
 **Session Management:**
