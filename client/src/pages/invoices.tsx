@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Mail, Download, Eye, RefreshCcw, Trash2 } from "lucide-react";
+import { Plus, Mail, Download, Eye, RefreshCcw, Trash2, Pencil } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Invoice, Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -291,6 +291,14 @@ export default function Invoices() {
                             data-testid={`button-view-${invoice.id}`}
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setLocation(`/invoices/${invoice.id}/edit`)}
+                            data-testid={`button-edit-${invoice.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
