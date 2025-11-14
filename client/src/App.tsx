@@ -75,6 +75,15 @@ function Router() {
           </Layout>
         </AuthGuard>
       </Route>
+      <Route path="/invoices/:id/edit">
+        {(params) => (
+          <AuthGuard>
+            <Layout>
+              <CreateInvoice id={params.id} />
+            </Layout>
+          </AuthGuard>
+        )}
+      </Route>
       <Route path="/recurring-invoices">
         <AuthGuard>
           <Layout>
