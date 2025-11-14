@@ -204,6 +204,32 @@ export class DatabaseStorage implements IStorage {
     await db.delete(invoices).where(eq(invoices.id, id));
   }
 
+  async updateInvoiceWithItems(id: string, data: Partial<InsertInvoice>, items: Array<{ description: string; amount: string }>): Promise<Invoice | undefined> {
+    // Update the invoice
+    const [updated] = await db
+      .update(invoices)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(invoices.id, id))
+      .returning();
+
+    if (!updated) return undefined;
+
+    // Delete old items
+    await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+
+    // Insert new items
+    if (items && items.length > 0) {
+      await db
+        .insert(invoiceItems)
+        .values(items.map(item => ({
+          ...item,
+          invoiceId: id,
+        })));
+    }
+
+    return updated;
+  }
+
   async createInvoiceWithItems(invoice: CreateInvoiceWithItems & { userId: string; invoiceNumber: number }): Promise<Invoice> {
     const { items, ...invoiceData } = invoice;
     
