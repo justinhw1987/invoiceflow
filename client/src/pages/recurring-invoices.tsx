@@ -36,6 +36,8 @@ type RecurringInvoice = {
   lastInvoiceDate?: string;
   isActive: boolean;
   amount: string;
+  generatedCount: number;
+  lastInvoiceNumber: number | null;
   customer: {
     name: string;
     email: string;
@@ -175,6 +177,7 @@ export default function RecurringInvoices() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Frequency</TableHead>
                   <TableHead>Amount</TableHead>
+                  <TableHead>Generated</TableHead>
                   <TableHead>Next Invoice</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -199,6 +202,14 @@ export default function RecurringInvoices() {
                       <div className="flex items-center">
                         <DollarSign className="h-4 w-4 mr-1" />
                         {parseFloat(recurring.amount).toFixed(2)}
+                      </div>
+                    </TableCell>
+                    <TableCell data-testid={`text-generated-${recurring.id}`}>
+                      <div className="text-sm">
+                        <div className="font-medium">{recurring.generatedCount} invoice{recurring.generatedCount !== 1 ? 's' : ''}</div>
+                        {recurring.lastInvoiceNumber && (
+                          <div className="text-muted-foreground">Last: #{recurring.lastInvoiceNumber}</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell data-testid={`text-next-date-${recurring.id}`}>

@@ -263,16 +263,28 @@ export class DatabaseStorage implements IStorage {
       .where(eq(recurringInvoices.userId, userId))
       .orderBy(desc(recurringInvoices.createdAt));
 
-    // Fetch items for each recurring invoice
+    // Fetch items and generated invoice info for each recurring invoice
     const recurringInvoicesWithItems = await Promise.all(
       results.map(async (recInvoice) => {
         const items = await this.getRecurringInvoiceItems(recInvoice.id);
         // Calculate total from items
         const total = items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2);
+        
+        // Get generated invoices info
+        const generatedInvoices = await db
+          .select({
+            invoiceNumber: invoices.invoiceNumber,
+          })
+          .from(invoices)
+          .where(eq(invoices.recurringInvoiceId, recInvoice.id))
+          .orderBy(desc(invoices.createdAt));
+        
         return {
           ...recInvoice,
           items,
           amount: total,
+          generatedCount: generatedInvoices.length,
+          lastInvoiceNumber: generatedInvoices.length > 0 ? generatedInvoices[0].invoiceNumber : null,
         };
       })
     );
