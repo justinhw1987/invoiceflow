@@ -418,6 +418,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/invoices/:id", requireAuth, async (req, res) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+
+      // Verify ownership
+      if (invoice.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Unauthorized to delete this invoice" });
+      }
+
+      await storage.deleteInvoice(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to delete invoice:", error);
+      res.status(500).json({ message: "Failed to delete invoice" });
+    }
+  });
+
   // Recurring Invoice routes
   app.get("/api/recurring-invoices", requireAuth, async (req, res) => {
     try {

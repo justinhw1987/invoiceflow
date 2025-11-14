@@ -200,6 +200,10 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async deleteInvoice(id: string): Promise<void> {
+    await db.delete(invoices).where(eq(invoices.id, id));
+  }
+
   async createInvoiceWithItems(invoice: CreateInvoiceWithItems & { userId: string; invoiceNumber: number }): Promise<Invoice> {
     const { items, ...invoiceData } = invoice;
     

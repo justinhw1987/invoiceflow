@@ -4,7 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Mail, Download, Eye, RefreshCcw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Mail, Download, Eye, RefreshCcw, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Invoice, Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +31,7 @@ export default function Invoices() {
   const { toast } = useToast();
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithCustomer | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceWithCustomer | null>(null);
 
   const { data: invoices, isLoading } = useQuery<InvoiceWithCustomer[]>({
     queryKey: ["/api/invoices"],
@@ -60,6 +71,28 @@ export default function Invoices() {
       toast({
         title: "Error",
         description: "Failed to send invoice email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/invoices/${id}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recurring-invoices"] });
+      setInvoiceToDelete(null);
+      toast({
+        title: "Invoice deleted",
+        description: "Invoice has been permanently deleted",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete invoice",
         variant: "destructive",
       });
     },
@@ -276,6 +309,14 @@ export default function Invoices() {
                           >
                             <Mail className="h-4 w-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setInvoiceToDelete(invoice)}
+                            data-testid={`button-delete-${invoice.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -291,6 +332,31 @@ export default function Invoices() {
         open={isViewDialogOpen}
         onOpenChange={setIsViewDialogOpen}
       />
+
+      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => setInvoiceToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete invoice
+              #{invoiceToDelete?.invoiceNumber}
+              {invoiceToDelete?.isPaid && " (this invoice is marked as paid)"}
+              {invoiceToDelete?.recurringInvoiceId && " (this invoice was generated from a recurring template)"}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => invoiceToDelete && deleteMutation.mutate(invoiceToDelete.id)}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Invoice"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
