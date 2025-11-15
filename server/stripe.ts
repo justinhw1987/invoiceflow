@@ -58,6 +58,8 @@ export async function createInvoicePaymentLink(
         quantity: 1,
       },
     ],
+    // Enable multiple payment methods including ACH (US bank account)
+    payment_method_types: ['card', 'us_bank_account'],
     after_completion: {
       type: 'hosted_confirmation',
       hosted_confirmation: {
