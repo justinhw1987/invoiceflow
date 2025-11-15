@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Plus, Mail, Phone, MapPin, Edit, Trash2, Search, CreditCard, Trash } from "lucide-react";
 import type { Customer } from "@shared/schema";
 import { CustomerDialog } from "@/components/customer-dialog";
-import { PaymentMethodDialog } from "@/components/payment-method-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +27,6 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
-  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [removePaymentDialogOpen, setRemovePaymentDialogOpen] = useState(false);
   const [customerToRemovePayment, setCustomerToRemovePayment] = useState<Customer | null>(null);
 
@@ -98,11 +95,6 @@ export default function Customers() {
       setDeleteDialogOpen(false);
       setCustomerToDelete(null);
     }
-  };
-
-  const handleAddPaymentMethod = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setPaymentMethodDialogOpen(true);
   };
 
   const handleRemovePaymentMethod = (customer: Customer) => {
@@ -232,13 +224,13 @@ export default function Customers() {
                 </div>
                 
                 {/* Payment Method Section */}
-                <div className="pt-3 border-t">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Payment Method</span>
-                    </div>
-                    {customer.stripePaymentMethodId ? (
+                {customer.stripePaymentMethodId && (
+                  <div className="pt-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Saved Payment</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" data-testid={`badge-payment-${customer.id}`}>
                           {customer.paymentMethodType === 'card' ? 'Card' : 'Bank'} ••••{customer.paymentMethodLast4}
@@ -252,19 +244,9 @@ export default function Customers() {
                           <Trash className="h-4 w-4" />
                         </Button>
                       </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAddPaymentMethod(customer)}
-                        data-testid={`button-add-payment-${customer.id}`}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Method
-                      </Button>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -305,7 +287,7 @@ export default function Customers() {
             <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to remove the saved payment method for {customerToRemovePayment?.name}? 
-              Future recurring invoices will require manual payment.
+              They will need to enter payment details again on their next invoice.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -319,12 +301,6 @@ export default function Customers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <PaymentMethodDialog
-        open={paymentMethodDialogOpen}
-        onOpenChange={setPaymentMethodDialogOpen}
-        customer={selectedCustomer}
-      />
     </div>
   );
 }
