@@ -120,7 +120,8 @@ export async function createInvoicePaymentLink(
   customerEmail: string,
   items: Array<{ description: string; amount: string }>,
   totalAmount: string,
-  invoiceId: string
+  invoiceId: string,
+  dbCustomerId: string
 ): Promise<{ paymentLinkId: string; paymentLinkUrl: string }> {
   if (!stripeSecretKey) {
     throw new Error('Stripe API key not configured');
@@ -151,7 +152,7 @@ export async function createInvoicePaymentLink(
   
   const successUrl = `${baseUrl}/payment-success?invoice_id=${invoiceId}`;
 
-  // Create a payment link
+  // Create a payment link that saves the payment method for future use
   const paymentLink = await stripe.paymentLinks.create({
     line_items: [
       {
@@ -167,14 +168,17 @@ export async function createInvoicePaymentLink(
         url: successUrl,
       },
     },
-    // Store invoice ID in metadata for webhook tracking
+    // Store invoice ID and customer ID in metadata for webhook tracking
     payment_intent_data: {
       metadata: {
         invoiceId: invoiceId,
         invoiceNumber: invoiceNumber.toString(),
+        dbCustomerId: dbCustomerId,
       },
+      // Save payment method for future off-session use
+      setup_future_usage: 'off_session',
     },
-    // Prefill customer email in checkout
+    // Create Stripe customer during checkout (we'll link it in webhook)
     customer_creation: 'always',
     invoice_creation: {
       enabled: true,

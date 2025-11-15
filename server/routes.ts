@@ -599,7 +599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           customer.email,
           invoiceData.items,
           totalAmount,
-          invoice.id
+          invoice.id,
+          customer.id
         );
 
         paymentLinkUrl = linkUrl;
@@ -982,7 +983,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               amount: item.amount,
             })),
             recurringInvoice.amount,
-            invoice.id
+            invoice.id,
+            customer.id
           );
           
           paymentLinkUrl = url;
