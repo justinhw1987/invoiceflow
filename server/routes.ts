@@ -49,7 +49,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     console.log('[Stripe Webhook] Received webhook request');
     console.log('[Stripe Webhook] Signature header:', sig ? 'present' : 'missing');
-    console.log('[Stripe Webhook] Webhook secret:', webhookSecret ? 'configured' : 'missing');
+    console.log('[Stripe Webhook] Webhook secret configured:', webhookSecret ? 'yes' : 'no');
+    console.log('[Stripe Webhook] Using secret:', webhookSecret ? `${webhookSecret.substring(0, 10)}...` : 'none');
 
     if (!webhookSecret) {
       console.error('[Stripe Webhook] No webhook secret configured');
@@ -62,15 +63,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // The express.raw() middleware gives us req.body as a Buffer
       console.log('[Stripe Webhook] Body type:', typeof req.body);
       console.log('[Stripe Webhook] Body is Buffer:', Buffer.isBuffer(req.body));
+      console.log('[Stripe Webhook] Body length:', req.body.length);
       
       event = stripe.webhooks.constructEvent(
         req.body,
         sig as string,
         webhookSecret
       );
+      
+      console.log('[Stripe Webhook] ✅ Signature verified successfully!');
     } catch (err: any) {
-      console.error('[Stripe Webhook] Signature verification failed:', err.message);
-      console.error('[Stripe Webhook] Error details:', err);
+      console.error('[Stripe Webhook] ❌ Signature verification failed:', err.message);
       return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
     }
 
