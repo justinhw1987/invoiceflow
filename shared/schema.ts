@@ -23,6 +23,10 @@ export const customers = pgTable("customers", {
   email: text("email").notNull(),
   phone: text("phone").notNull(),
   address: text("address").notNull(),
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID for saved payment methods
+  stripePaymentMethodId: text("stripe_payment_method_id"), // Saved payment method ID
+  paymentMethodLast4: text("payment_method_last4"), // Last 4 digits for display
+  paymentMethodType: text("payment_method_type"), // 'card' or 'us_bank_account'
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

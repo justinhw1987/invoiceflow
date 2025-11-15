@@ -8,7 +8,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { sendInvoiceEmail, generateInvoicePDF, sendPaymentReceiptEmail } from "./email";
-import { createInvoicePaymentLink, stripe } from "./stripe";
+import { createInvoicePaymentLink, stripe, getOrCreateStripeCustomer, createSetupIntent, chargePaymentMethod } from "./stripe";
 import * as XLSX from "xlsx";
 
 declare module "express-session" {
@@ -81,50 +81,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Handle the event
     try {
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as any;
-        console.log('[Stripe Webhook] Payment completed for session:', session.id);
-
-        // Extract invoice ID from payment intent metadata
+      // Handle both checkout sessions (payment links) and direct payment intents (automatic charges)
+      if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
         let invoiceId: string | undefined;
         
-        // First try to get from session metadata
-        if (session.metadata?.invoiceId) {
-          invoiceId = session.metadata.invoiceId;
-        } else if (session.payment_intent) {
-          // If not in session, fetch the payment intent to get metadata
-          const paymentIntentId = typeof session.payment_intent === 'string' 
-            ? session.payment_intent 
-            : session.payment_intent.id;
-            
-          console.log('[Stripe Webhook] Fetching payment intent:', paymentIntentId);
-          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (event.type === 'checkout.session.completed') {
+          const session = event.data.object as any;
+          console.log('[Stripe Webhook] Payment completed for session:', session.id);
+
+          // Extract invoice ID from payment intent metadata
+          // First try to get from session metadata
+          if (session.metadata?.invoiceId) {
+            invoiceId = session.metadata.invoiceId;
+          } else if (session.payment_intent) {
+            // If not in session, fetch the payment intent to get metadata
+            const paymentIntentId = typeof session.payment_intent === 'string' 
+              ? session.payment_intent 
+              : session.payment_intent.id;
+              
+            console.log('[Stripe Webhook] Fetching payment intent:', paymentIntentId);
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+            invoiceId = paymentIntent.metadata?.invoiceId;
+          }
+        } else if (event.type === 'payment_intent.succeeded') {
+          const paymentIntent = event.data.object as any;
+          console.log('[Stripe Webhook] Payment intent succeeded:', paymentIntent.id);
           invoiceId = paymentIntent.metadata?.invoiceId;
         }
         
         if (!invoiceId) {
-          console.error('[Stripe Webhook] No invoice ID found in session or payment intent metadata');
-          console.error('[Stripe Webhook] Session:', JSON.stringify(session, null, 2));
+          console.error('[Stripe Webhook] No invoice ID found in event metadata');
           return res.status(400).json({ error: 'No invoice ID in metadata' });
         }
 
-        console.log('[Stripe Webhook] Marking invoice as paid:', invoiceId);
+        console.log('[Stripe Webhook] Attempting to mark invoice as paid:', invoiceId);
 
-        // Mark invoice as paid
-        const updated = await storage.updateInvoice(invoiceId, { isPaid: true });
+        // Atomically mark invoice as paid only if it's currently unpaid
+        // This prevents race conditions when both webhook events arrive simultaneously
+        const wasUpdated = await storage.markInvoicePaidIfUnpaid(invoiceId);
         
-        if (!updated) {
-          console.error('[Stripe Webhook] Invoice not found:', invoiceId);
-          return res.status(404).json({ error: 'Invoice not found' });
+        if (!wasUpdated) {
+          console.log('[Stripe Webhook] Invoice already paid, skipping duplicate processing:', invoiceId);
+          return res.json({ received: true, status: 'already_paid' });
         }
 
         console.log('[Stripe Webhook] Successfully marked invoice as paid:', invoiceId);
 
         // Fetch invoice to get payment link ID and customer details
         const invoice = await storage.getInvoice(invoiceId);
+        
+        if (!invoice) {
+          console.error('[Stripe Webhook] Invoice not found after update:', invoiceId);
+          return res.status(500).json({ error: 'Invoice not found after update' });
+        }
 
-        // Deactivate the Stripe payment link to prevent duplicate payments
-        if (invoice?.stripePaymentLinkId) {
+        // Deactivate the Stripe payment link to prevent duplicate payments (only for payment link checkouts)
+        if (invoice.stripePaymentLinkId && event.type === 'checkout.session.completed') {
           try {
             console.log('[Stripe Webhook] Deactivating payment link:', invoice.stripePaymentLinkId);
             await stripe.paymentLinks.update(invoice.stripePaymentLinkId, {
@@ -137,9 +149,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Send payment receipt email
+        // Send payment receipt email (only once, since we early-return for already-paid invoices)
         try {
-          if (invoice && invoice.customer) {
+          if (invoice.customer) {
             console.log('[Stripe Webhook] Sending payment receipt email...');
             
             // Get user for company name
@@ -367,6 +379,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Customer deleted" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete customer" });
+    }
+  });
+
+  // Payment method routes
+  app.post("/api/customers/:id/setup-payment-method", requireAuth, async (req, res) => {
+    try {
+      const customer = await storage.getCustomer(req.params.id);
+      
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // Create or get Stripe customer
+      const stripeCustomerId = await getOrCreateStripeCustomer(
+        customer.id,
+        customer.email,
+        customer.name,
+        customer.stripeCustomerId
+      );
+
+      // Update customer with Stripe customer ID if new
+      if (!customer.stripeCustomerId) {
+        await storage.updateCustomer(customer.id, { stripeCustomerId });
+      }
+
+      // Create SetupIntent for saving payment method
+      const clientSecret = await createSetupIntent(stripeCustomerId);
+
+      res.json({ clientSecret, stripeCustomerId });
+    } catch (error: any) {
+      console.error("Setup payment method error:", error);
+      res.status(500).json({ message: error.message || "Failed to setup payment method" });
+    }
+  });
+
+  app.post("/api/customers/:id/save-payment-method", requireAuth, async (req, res) => {
+    try {
+      const { paymentMethodId } = req.body;
+      
+      if (!paymentMethodId) {
+        return res.status(400).json({ message: "Payment method ID required" });
+      }
+
+      const customer = await storage.getCustomer(req.params.id);
+      
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // Retrieve payment method details from Stripe
+      const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+      
+      // Extract last 4 and type
+      const last4 = paymentMethod.card?.last4 || paymentMethod.us_bank_account?.last4 || '';
+      const type = paymentMethod.type; // 'card' or 'us_bank_account'
+
+      // Update customer with payment method info
+      const updated = await storage.updateCustomer(customer.id, {
+        stripePaymentMethodId: paymentMethodId,
+        paymentMethodLast4: last4,
+        paymentMethodType: type,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Save payment method error:", error);
+      res.status(500).json({ message: error.message || "Failed to save payment method" });
+    }
+  });
+
+  app.delete("/api/customers/:id/payment-method", requireAuth, async (req, res) => {
+    try {
+      const customer = await storage.getCustomer(req.params.id);
+      
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // Remove payment method from database
+      const updated = await storage.updateCustomer(customer.id, {
+        stripePaymentMethodId: null,
+        paymentMethodLast4: null,
+        paymentMethodType: null,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Remove payment method error:", error);
+      res.status(500).json({ message: "Failed to remove payment method" });
     }
   });
 
@@ -839,47 +940,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[Recurring Invoice ${invoiceNumber}] Created invoice from template:`, invoice.id);
 
-      // Create Stripe payment link
+      const customer = recurringInvoice.customer;
       let paymentLinkUrl = '';
-      let stripePaymentLinkId = '';
+      let invoiceAutoPaid = false;
 
-      try {
-        const { url, paymentLinkId } = await createInvoicePaymentLink(
-          invoiceNumber,
-          recurringInvoice.amount,
-          invoice.id
-        );
+      // Check if customer has saved payment method for automatic charging
+      if (customer.stripeCustomerId && customer.stripePaymentMethodId) {
+        console.log(`[Recurring Invoice ${invoiceNumber}] Customer has saved payment method, attempting automatic charge`);
         
-        paymentLinkUrl = url;
-        stripePaymentLinkId = paymentLinkId;
+        try {
+          // Automatically charge the saved payment method
+          const paymentIntentId = await chargePaymentMethod(
+            customer.stripeCustomerId,
+            customer.stripePaymentMethodId,
+            recurringInvoice.amount,
+            invoice.id,
+            invoiceNumber
+          );
 
-        // Update invoice with payment link info
-        await storage.updateInvoice(invoice.id, {
-          paymentLinkUrl,
-          stripePaymentLinkId,
-        });
+          // Don't mark as paid here - let the webhook handle it for consistency
+          invoiceAutoPaid = true;
 
-        console.log(`[Recurring Invoice ${invoiceNumber}] Payment link created:`, paymentLinkUrl);
-      } catch (stripeError: any) {
-        console.error(`[Recurring Invoice ${invoiceNumber}] Failed to create payment link:`, stripeError.message || stripeError);
+          console.log(`[Recurring Invoice ${invoiceNumber}] Auto-charge initiated. Payment Intent:`, paymentIntentId);
+          console.log(`[Recurring Invoice ${invoiceNumber}] Webhook will mark invoice as paid and send receipt`);
+        } catch (chargeError: any) {
+          console.error(`[Recurring Invoice ${invoiceNumber}] Auto-charge failed:`, chargeError.message);
+          // Fall back to creating payment link if auto-charge fails
+          invoiceAutoPaid = false;
+        }
+      }
+
+      // If not auto-paid, create payment link as fallback
+      if (!invoiceAutoPaid) {
+        try {
+          const { url, paymentLinkId } = await createInvoicePaymentLink(
+            invoiceNumber,
+            customer.name,
+            customer.email,
+            recurringInvoice.items.map((item: any) => ({
+              description: item.description,
+              amount: item.amount,
+            })),
+            recurringInvoice.amount,
+            invoice.id
+          );
+          
+          paymentLinkUrl = url;
+
+          // Update invoice with payment link info
+          await storage.updateInvoice(invoice.id, {
+            paymentLinkUrl,
+            stripePaymentLinkId: paymentLinkId,
+          });
+
+          console.log(`[Recurring Invoice ${invoiceNumber}] Payment link created:`, paymentLinkUrl);
+        } catch (stripeError: any) {
+          console.error(`[Recurring Invoice ${invoiceNumber}] Failed to create payment link:`, stripeError.message || stripeError);
+        }
       }
 
       // Update recurring invoice with next invoice date
       const nextDate = calculateNextInvoiceDate(recurringInvoice.frequency, currentDate);
       await storage.updateRecurringInvoiceNextDate(req.params.id, nextDate, currentDate);
 
-      // Send email if customer has email
-      if (recurringInvoice.customer.email) {
+      // Send email if customer has email (only for payment links - webhook will send receipt for auto-charges)
+      if (customer.email && !invoiceAutoPaid) {
         try {
           const user = await storage.getUser(req.session.userId!);
           
-          console.log(`[Recurring Invoice ${invoiceNumber}] Sending email with payment link:`, paymentLinkUrl || 'NONE');
+          console.log(`[Recurring Invoice ${invoiceNumber}] Sending invoice with payment link:`, paymentLinkUrl || 'NONE');
           
           await sendInvoiceEmail(
-            recurringInvoice.customer.email,
-            recurringInvoice.customer.name,
-            recurringInvoice.customer.phone,
-            recurringInvoice.customer.address,
+            customer.email,
+            customer.name,
+            customer.phone,
+            customer.address,
             invoiceNumber,
             "", // service field not used
             recurringInvoice.amount,
@@ -897,6 +1032,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("Email sending error:", emailError);
           // Don't fail the request if email fails
         }
+      } else if (invoiceAutoPaid) {
+        console.log(`[Recurring Invoice ${invoiceNumber}] Auto-charged - webhook will send payment receipt`);
       }
 
       // Fetch and return updated invoice

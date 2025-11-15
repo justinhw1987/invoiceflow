@@ -22,6 +22,98 @@ export const stripe = new Stripe(stripeSecretKey || '', {
  * @param invoiceId - Invoice ID for metadata tracking
  * @returns Object with paymentLinkId and paymentLinkUrl
  */
+/**
+ * Creates or retrieves a Stripe customer for a given email
+ * @param customerId - Database customer ID
+ * @param customerEmail - Customer email
+ * @param customerName - Customer name
+ * @returns Stripe customer ID
+ */
+export async function getOrCreateStripeCustomer(
+  customerId: string,
+  customerEmail: string,
+  customerName: string,
+  existingStripeCustomerId?: string | null
+): Promise<string> {
+  if (!stripeSecretKey) {
+    throw new Error('Stripe API key not configured');
+  }
+
+  // Return existing Stripe customer if available
+  if (existingStripeCustomerId) {
+    return existingStripeCustomerId;
+  }
+
+  // Create new Stripe customer
+  const stripeCustomer = await stripe.customers.create({
+    email: customerEmail,
+    name: customerName,
+    metadata: {
+      dbCustomerId: customerId,
+    },
+  });
+
+  return stripeCustomer.id;
+}
+
+/**
+ * Creates a SetupIntent for collecting payment method
+ * @param stripeCustomerId - Stripe customer ID
+ * @returns Client secret for frontend setup
+ */
+export async function createSetupIntent(stripeCustomerId: string): Promise<string> {
+  if (!stripeSecretKey) {
+    throw new Error('Stripe API key not configured');
+  }
+
+  const setupIntent = await stripe.setupIntents.create({
+    customer: stripeCustomerId,
+    payment_method_types: ['card', 'us_bank_account'],
+    usage: 'off_session', // Allow charging when customer is not present
+  });
+
+  return setupIntent.client_secret!;
+}
+
+/**
+ * Charges a customer's saved payment method
+ * @param stripeCustomerId - Stripe customer ID
+ * @param paymentMethodId - Saved payment method ID
+ * @param amount - Amount in dollars (e.g., "100.00")
+ * @param invoiceId - Invoice ID for metadata
+ * @param invoiceNumber - Invoice number for description
+ * @returns Payment intent ID
+ */
+export async function chargePaymentMethod(
+  stripeCustomerId: string,
+  paymentMethodId: string,
+  amount: string,
+  invoiceId: string,
+  invoiceNumber: number
+): Promise<string> {
+  if (!stripeSecretKey) {
+    throw new Error('Stripe API key not configured');
+  }
+
+  const amountInCents = Math.round(parseFloat(amount) * 100);
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: 'usd',
+    customer: stripeCustomerId,
+    payment_method: paymentMethodId,
+    off_session: true, // Customer is not present
+    confirm: true, // Immediately attempt payment
+    description: `Invoice #${invoiceNumber}`,
+    metadata: {
+      invoiceId: invoiceId,
+      invoiceNumber: invoiceNumber.toString(),
+    },
+  });
+
+  return paymentIntent.id;
+}
+
 export async function createInvoicePaymentLink(
   invoiceNumber: number,
   customerName: string,

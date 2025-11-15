@@ -1,7 +1,7 @@
 // Reference: javascript_database integration blueprint
 import { users, customers, invoices, invoiceItems, recurringInvoices, recurringInvoiceItems, type User, type InsertUser, type Customer, type InsertCustomer, type Invoice, type InsertInvoice, type InvoiceItem, type InsertInvoiceItem, type CreateInvoiceWithItems, type RecurringInvoice, type InsertRecurringInvoice, type RecurringInvoiceItem, type InsertRecurringInvoiceItem, type CreateRecurringInvoiceWithItems } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -24,6 +24,7 @@ export interface IStorage {
   createInvoice(invoice: InsertInvoice & { userId: string; invoiceNumber: number }): Promise<Invoice>;
   createInvoiceWithItems(invoice: CreateInvoiceWithItems & { userId: string; invoiceNumber: number }): Promise<Invoice>;
   updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice | undefined>;
+  markInvoicePaidIfUnpaid(id: string): Promise<boolean>;
   getNextInvoiceNumber(userId: string): Promise<number>;
   getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
 
@@ -202,6 +203,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(invoices.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  /**
+   * Atomically marks an invoice as paid only if it's currently unpaid
+   * Returns true if the update was made, false if invoice was already paid
+   * This prevents race conditions in webhook processing
+   */
+  async markInvoicePaidIfUnpaid(id: string): Promise<boolean> {
+    const [updated] = await db
+      .update(invoices)
+      .set({ isPaid: true, updatedAt: new Date() })
+      .where(and(eq(invoices.id, id), eq(invoices.isPaid, false)))
+      .returning();
+    return !!updated;
   }
 
   async deleteInvoice(id: string): Promise<void> {
