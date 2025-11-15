@@ -208,7 +208,8 @@ export async function sendInvoiceEmail(
   amount: string,
   date: string,
   companyName?: string,
-  items?: Array<{ description: string; amount: string }>
+  items?: Array<{ description: string; amount: string }>,
+  paymentLinkUrl?: string
 ) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
@@ -301,6 +302,17 @@ export async function sendInvoiceEmail(
                   </tfoot>
                 </table>
               </div>
+              
+              ${paymentLinkUrl ? `
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${escapeHtml(paymentLinkUrl)}" style="display: inline-block; padding: 14px 32px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                  Pay Invoice Now
+                </a>
+              </div>
+              <p style="text-align: center; color: #6b7280; font-size: 14px; margin-top: 10px;">
+                Click the button above to securely pay this invoice with Stripe
+              </p>
+              ` : ''}
               
               <p>If you have any questions about this invoice, please don't hesitate to contact us.</p>
               <p>Thank you for your business!</p>
