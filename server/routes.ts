@@ -7,6 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { sendInvoiceEmail, generateInvoicePDF } from "./email";
+import { createInvoicePaymentLink, stripe } from "./stripe";
 import * as XLSX from "xlsx";
 
 declare module "express-session" {
@@ -315,13 +316,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Customer not found" });
       }
 
+      // Calculate total amount
+      const totalAmount = invoiceData.items
+        .reduce((sum, item) => sum + parseFloat(item.amount), 0)
+        .toFixed(2);
+
+      // Create invoice first
       const invoice = await storage.createInvoiceWithItems({
         ...invoiceData,
         userId: req.session.userId!,
         invoiceNumber,
       });
 
-      res.json(invoice);
+      // Create Stripe payment link
+      try {
+        console.log(`[Invoice ${invoiceNumber}] Creating Stripe payment link for amount $${totalAmount}`);
+        const { paymentLinkId, paymentLinkUrl } = await createInvoicePaymentLink(
+          invoiceNumber,
+          customer.name,
+          customer.email,
+          invoiceData.items,
+          totalAmount,
+          invoice.id
+        );
+
+        console.log(`[Invoice ${invoiceNumber}] Payment link created: ${paymentLinkId}`);
+
+        // Update invoice with payment link
+        await storage.updateInvoice(invoice.id, {
+          stripePaymentLinkId: paymentLinkId,
+          paymentLinkUrl: paymentLinkUrl,
+        });
+
+        console.log(`[Invoice ${invoiceNumber}] Updated invoice with payment link`);
+
+        // Fetch updated invoice
+        const updatedInvoice = await storage.getInvoice(invoice.id);
+        res.json(updatedInvoice);
+      } catch (stripeError: any) {
+        console.error(`[Invoice ${invoiceNumber}] Stripe payment link creation failed:`, stripeError.message || stripeError);
+        console.error(`[Invoice ${invoiceNumber}] Stack trace:`, stripeError.stack);
+        // Return invoice anyway, just without payment link
+        res.json(invoice);
+      }
     } catch (error) {
       console.error("Invoice creation error:", error);
       res.status(400).json({ message: "Invalid invoice data" });
