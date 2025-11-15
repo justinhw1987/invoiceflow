@@ -41,6 +41,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
 
+  // Stripe webhook endpoint (must be before body parsing middleware)
+  app.post("/api/stripe/webhook", async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.TESTING_STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error('[Stripe Webhook] No webhook secret configured');
+      return res.status(500).json({ error: 'Webhook secret not configured' });
+    }
+
+    let event;
+
+    try {
+      // Verify webhook signature using raw body
+      const rawBody = (req as any).rawBody;
+      if (!rawBody) {
+        throw new Error('Raw body not available');
+      }
+      
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig as string,
+        webhookSecret
+      );
+    } catch (err: any) {
+      console.error('[Stripe Webhook] Signature verification failed:', err.message);
+      return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
+    }
+
+    console.log('[Stripe Webhook] Received event:', event.type);
+
+    // Handle the event
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as any;
+        console.log('[Stripe Webhook] Payment completed for session:', session.id);
+
+        // Extract invoice ID from payment intent metadata
+        let invoiceId: string | undefined;
+        
+        // First try to get from session metadata
+        if (session.metadata?.invoiceId) {
+          invoiceId = session.metadata.invoiceId;
+        } else if (session.payment_intent) {
+          // If not in session, fetch the payment intent to get metadata
+          const paymentIntentId = typeof session.payment_intent === 'string' 
+            ? session.payment_intent 
+            : session.payment_intent.id;
+            
+          console.log('[Stripe Webhook] Fetching payment intent:', paymentIntentId);
+          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+          invoiceId = paymentIntent.metadata?.invoiceId;
+        }
+        
+        if (!invoiceId) {
+          console.error('[Stripe Webhook] No invoice ID found in session or payment intent metadata');
+          console.error('[Stripe Webhook] Session:', JSON.stringify(session, null, 2));
+          return res.status(400).json({ error: 'No invoice ID in metadata' });
+        }
+
+        console.log('[Stripe Webhook] Marking invoice as paid:', invoiceId);
+
+        // Mark invoice as paid
+        const updated = await storage.updateInvoice(invoiceId, { isPaid: true });
+        
+        if (!updated) {
+          console.error('[Stripe Webhook] Invoice not found:', invoiceId);
+          return res.status(404).json({ error: 'Invoice not found' });
+        }
+
+        console.log('[Stripe Webhook] Successfully marked invoice as paid:', invoiceId);
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('[Stripe Webhook] Error processing webhook:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
   // Auth middleware
   const requireAuth = (req: any, res: any, next: any) => {
     if (!req.session.userId) {
