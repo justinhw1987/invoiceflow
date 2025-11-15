@@ -12,9 +12,13 @@ This is a professional invoice management system built with React, Express, and 
 - **Invoice editing:** Update invoice details, customer, date, and line items after creation
 - **Invoice deletion:** Delete invoices with confirmation dialog and warnings for paid/recurring invoices
 - PDF download functionality available in both invoice table and invoice view dialog
+- **Stripe payment integration:** Credit card and ACH (US bank account) payment support via payment links
+- **Duplicate payment prevention:** Payment links automatically deactivated after first successful payment
+- **Payment receipts:** Automatic receipt emails with red "PAID" watermark on PDF attachments
 - Payment status tracking with Excel export capability
 - Automatic email delivery of invoices to customers via Resend when created
-- Manual email resend option available from invoices page (resends PDF to customer)
+- Manual email resend option available from invoices page (sends receipt for paid invoices, invoice for unpaid)
+- **Payment confirmation page:** Public /payment-success route shows payment status after checkout
 - Customizable company name in account settings (used in outbound emails and PDFs)
 - Password change functionality with secure validation
 - Session-based authentication with bcrypt password hashing
