@@ -353,13 +353,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .reduce((sum, item) => sum + parseFloat(item.amount), 0)
         .toFixed(2);
 
-      // Update invoice with items
+      // Update invoice with items (amount is calculated automatically from items)
       const updated = await storage.updateInvoiceWithItems(
         req.params.id,
         {
           customerId: invoiceData.customerId,
           date: invoiceData.date,
-          amount: totalAmount,
           isPaid: invoiceData.isPaid,
         },
         invoiceData.items
