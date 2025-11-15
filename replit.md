@@ -13,7 +13,11 @@ This is a professional invoice management system built with React, Express, and 
 - **Invoice deletion:** Delete invoices with confirmation dialog and warnings for paid/recurring invoices
 - PDF download functionality available in both invoice table and invoice view dialog
 - **Stripe payment integration:** Credit card and ACH (US bank account) payment support via payment links
+- **Saved payment methods:** Customers can save credit cards or bank accounts for automatic recurring charges
+- **Automatic recurring payments:** When a saved payment method exists, recurring invoices are automatically charged without requiring customer action
+- **Smart payment fallback:** Recurring invoices create payment links only when no saved payment method is available
 - **Duplicate payment prevention:** Payment links automatically deactivated after first successful payment
+- **Atomic payment processing:** Webhook idempotency prevents duplicate receipt emails from concurrent events
 - **Payment receipts:** Automatic receipt emails with red "PAID" watermark on PDF attachments
 - Payment status tracking with Excel export capability
 - Automatic email delivery of invoices to customers via Resend when created
@@ -62,9 +66,11 @@ Preferred communication style: Simple, everyday language.
 **API Structure:**
 - RESTful endpoints under `/api` prefix
 - Authentication endpoints: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, PATCH /api/auth/change-password, PATCH /api/auth/update-profile
-- Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id
+- Customer endpoints: GET/POST /api/customers, GET/PATCH/DELETE /api/customers/:id, POST /api/customers/:id/setup-payment-method, POST /api/customers/:id/save-payment-method, DELETE /api/customers/:id/remove-payment-method
 - Invoice endpoints: GET/POST /api/invoices, GET /api/invoices/:id, PATCH /api/invoices/:id, DELETE /api/invoices/:id, GET /api/invoices/export, GET /api/invoices/:id/download, PATCH /api/invoices/:id/mark-paid, POST /api/invoices/:id/email
+- **Payment method management:** SetupIntent creation for secure card/bank collection, save payment method to customer, remove saved payment method
 - **Invoice edit/delete:** PATCH and DELETE endpoints validate ownership, PATCH atomically updates invoice and replaces line items, DELETE includes safeguards for paid/recurring invoices
+- **Webhook handling:** POST /api/stripe/webhook processes checkout.session.completed (payment links) and payment_intent.succeeded (automatic charges) events with atomic idempotency
 - **Note:** Specific routes (like /export and /download) are placed before parameterized routes (like /:id) to prevent route matching conflicts
 
 **Session Management:**
@@ -99,6 +105,10 @@ customers
   - id (UUID, primary key)
   - userId (foreign key to users)
   - name, email, phone, address (text fields)
+  - stripeCustomerId (text, nullable) - Stripe customer ID for payment processing
+  - stripePaymentMethodId (text, nullable) - Saved payment method for automatic charges
+  - paymentMethodLast4 (text, nullable) - Last 4 digits of saved payment method
+  - paymentMethodType (text, nullable) - Type of payment method (card/us_bank_account)
   - createdAt (timestamp)
   - Cascade delete when user is deleted
 
