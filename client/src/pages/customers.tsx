@@ -3,11 +3,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Mail, Phone, MapPin, Edit, Trash2, Search } from "lucide-react";
+import { Plus, Mail, Phone, MapPin, Edit, Trash2, Search, CreditCard, Trash } from "lucide-react";
 import type { Customer } from "@shared/schema";
 import { CustomerDialog } from "@/components/customer-dialog";
+import { PaymentMethodDialog } from "@/components/payment-method-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +28,10 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [removePaymentDialogOpen, setRemovePaymentDialogOpen] = useState(false);
+  const [customerToRemovePayment, setCustomerToRemovePayment] = useState<Customer | null>(null);
 
   const { data: customers, isLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -51,6 +57,26 @@ export default function Customers() {
     },
   });
 
+  const removePaymentMethodMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/customers/${id}/remove-payment-method`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      toast({
+        title: "Payment method removed",
+        description: "The saved payment method has been removed successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove payment method",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredCustomers = customers?.filter((customer) =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -71,6 +97,24 @@ export default function Customers() {
       deleteMutation.mutate(customerToDelete.id);
       setDeleteDialogOpen(false);
       setCustomerToDelete(null);
+    }
+  };
+
+  const handleAddPaymentMethod = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setPaymentMethodDialogOpen(true);
+  };
+
+  const handleRemovePaymentMethod = (customer: Customer) => {
+    setCustomerToRemovePayment(customer);
+    setRemovePaymentDialogOpen(true);
+  };
+
+  const confirmRemovePayment = () => {
+    if (customerToRemovePayment) {
+      removePaymentMethodMutation.mutate(customerToRemovePayment.id);
+      setRemovePaymentDialogOpen(false);
+      setCustomerToRemovePayment(null);
     }
   };
 
@@ -186,6 +230,41 @@ export default function Customers() {
                   <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <span data-testid={`text-address-${customer.id}`}>{customer.address}</span>
                 </div>
+                
+                {/* Payment Method Section */}
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Payment Method</span>
+                    </div>
+                    {customer.stripePaymentMethodId ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" data-testid={`badge-payment-${customer.id}`}>
+                          {customer.paymentMethodType === 'card' ? 'Card' : 'Bank'} ••••{customer.paymentMethodLast4}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemovePaymentMethod(customer)}
+                          data-testid={`button-remove-payment-${customer.id}`}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddPaymentMethod(customer)}
+                        data-testid={`button-add-payment-${customer.id}`}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Method
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -219,6 +298,33 @@ export default function Customers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={removePaymentDialogOpen} onOpenChange={setRemovePaymentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove the saved payment method for {customerToRemovePayment?.name}? 
+              Future recurring invoices will require manual payment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-remove-payment">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemovePayment}
+              data-testid="button-confirm-remove-payment"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <PaymentMethodDialog
+        open={paymentMethodDialogOpen}
+        onOpenChange={setPaymentMethodDialogOpen}
+        customer={selectedCustomer}
+      />
     </div>
   );
 }
