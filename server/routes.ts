@@ -135,6 +135,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: 'Invoice not found after update' });
         }
 
+        // Save payment method for first-time payments (checkout sessions only)
+        if (event.type === 'checkout.session.completed') {
+          try {
+            const session = event.data.object as any;
+            
+            // Get payment intent to extract payment method
+            const paymentIntentId = typeof session.payment_intent === 'string' 
+              ? session.payment_intent 
+              : session.payment_intent?.id;
+            
+            if (paymentIntentId) {
+              const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+              const dbCustomerId = paymentIntent.metadata?.dbCustomerId;
+              
+              // Save payment method if customer doesn't have one saved yet
+              if (dbCustomerId && paymentIntent.payment_method) {
+                const customer = await storage.getCustomer(dbCustomerId);
+                
+                if (customer && !customer.stripePaymentMethodId) {
+                  console.log('[Stripe Webhook] Saving payment method for first-time payment');
+                  
+                  // Get payment method details
+                  const paymentMethodId = typeof paymentIntent.payment_method === 'string'
+                    ? paymentIntent.payment_method
+                    : paymentIntent.payment_method.id;
+                    
+                  const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+                  
+                  // Extract last 4 digits and type based on payment method type
+                  let last4 = '';
+                  let type = '';
+                  
+                  if (paymentMethod.type === 'card' && paymentMethod.card) {
+                    last4 = paymentMethod.card.last4;
+                    type = 'card';
+                  } else if (paymentMethod.type === 'us_bank_account' && paymentMethod.us_bank_account) {
+                    last4 = paymentMethod.us_bank_account.last4;
+                    type = 'us_bank_account';
+                  }
+                  
+                  // Get Stripe customer ID from session
+                  const stripeCustomerId = typeof session.customer === 'string'
+                    ? session.customer
+                    : session.customer?.id;
+                  
+                  if (stripeCustomerId) {
+                    // Update customer with payment method info
+                    await storage.updateCustomer(dbCustomerId, {
+                      stripeCustomerId: stripeCustomerId,
+                      stripePaymentMethodId: paymentMethodId,
+                      paymentMethodLast4: last4,
+                      paymentMethodType: type,
+                    });
+                    
+                    console.log('[Stripe Webhook] Payment method saved successfully for customer:', dbCustomerId);
+                  }
+                }
+              }
+            }
+          } catch (pmError: any) {
+            console.error('[Stripe Webhook] Failed to save payment method:', pmError.message);
+            // Don't fail the webhook if payment method saving fails
+          }
+        }
+
         // Deactivate the Stripe payment link to prevent duplicate payments (only for payment link checkouts)
         if (invoice.stripePaymentLinkId && event.type === 'checkout.session.completed') {
           try {
