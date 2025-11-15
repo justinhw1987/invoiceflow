@@ -77,22 +77,10 @@ export default function CreateInvoice({ id }: { id?: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       
       if (!isEditing) {
-        // Automatically send email only after creating new invoice
-        if (invoice?.id) {
-          try {
-            await apiRequest("POST", `/api/invoices/${invoice.id}/email`, undefined);
-            toast({
-              title: "Invoice created and sent",
-              description: "Invoice has been saved and emailed to the customer",
-            });
-          } catch (error) {
-            toast({
-              title: "Invoice created",
-              description: "Invoice saved, but failed to send email. You can resend from the invoices page.",
-              variant: "destructive",
-            });
-          }
-        }
+        toast({
+          title: "Invoice created and sent",
+          description: "Invoice has been saved and emailed to the customer",
+        });
       } else {
         toast({
           title: "Invoice updated",

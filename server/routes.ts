@@ -328,10 +328,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoiceNumber,
       });
 
+      let paymentLinkUrl: string | undefined;
+
       // Create Stripe payment link
       try {
         console.log(`[Invoice ${invoiceNumber}] Creating Stripe payment link for amount $${totalAmount}`);
-        const { paymentLinkId, paymentLinkUrl } = await createInvoicePaymentLink(
+        const { paymentLinkId, paymentLinkUrl: linkUrl } = await createInvoicePaymentLink(
           invoiceNumber,
           customer.name,
           customer.email,
@@ -340,6 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoice.id
         );
 
+        paymentLinkUrl = linkUrl;
         console.log(`[Invoice ${invoiceNumber}] Payment link created: ${paymentLinkId}`);
 
         // Update invoice with payment link
@@ -349,16 +352,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         console.log(`[Invoice ${invoiceNumber}] Updated invoice with payment link`);
-
-        // Fetch updated invoice
-        const updatedInvoice = await storage.getInvoice(invoice.id);
-        res.json(updatedInvoice);
       } catch (stripeError: any) {
         console.error(`[Invoice ${invoiceNumber}] Stripe payment link creation failed:`, stripeError.message || stripeError);
         console.error(`[Invoice ${invoiceNumber}] Stack trace:`, stripeError.stack);
-        // Return invoice anyway, just without payment link
-        res.json(invoice);
       }
+
+      // Automatically send email with payment link
+      try {
+        const user = await storage.getUser(req.session.userId!);
+        console.log(`[Invoice ${invoiceNumber}] Sending email with payment link:`, paymentLinkUrl || 'NONE');
+        
+        await sendInvoiceEmail(
+          customer.email,
+          customer.name,
+          customer.phone,
+          customer.address,
+          invoiceNumber,
+          invoiceData.items.map((item: any) => `${item.description}: $${parseFloat(item.amount).toFixed(2)}`).join(', '),
+          totalAmount,
+          invoiceData.date,
+          user?.companyName || undefined,
+          invoiceData.items,
+          paymentLinkUrl
+        );
+
+        console.log(`[Invoice ${invoiceNumber}] Email sent successfully`);
+      } catch (emailError: any) {
+        console.error(`[Invoice ${invoiceNumber}] Email sending failed:`, emailError.message || emailError);
+      }
+
+      // Fetch and return updated invoice
+      const updatedInvoice = await storage.getInvoice(invoice.id);
+      res.json(updatedInvoice);
     } catch (error) {
       console.error("Invoice creation error:", error);
       res.status(400).json({ message: "Invalid invoice data" });
