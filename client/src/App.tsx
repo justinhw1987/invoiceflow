@@ -11,6 +11,7 @@ import Invoices from "@/pages/invoices";
 import CreateInvoice from "@/pages/create-invoice";
 import RecurringInvoices from "@/pages/recurring-invoices";
 import CreateRecurringInvoice from "@/pages/create-recurring-invoice";
+import PaymentSuccess from "@/pages/payment-success";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -107,6 +108,7 @@ function Router() {
           </AuthGuard>
         )}
       </Route>
+      <Route path="/payment-success" component={PaymentSuccess} />
       <Route component={NotFound} />
     </Switch>
   );

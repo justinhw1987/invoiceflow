@@ -50,6 +50,15 @@ export async function createInvoicePaymentLink(
     currency: 'usd',
   });
 
+  // Determine success URL - use production domain if available, fallback to localhost
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : process.env.NODE_ENV === 'production'
+    ? 'https://casitasvalleymedicine.com'
+    : 'http://localhost:5000';
+  
+  const successUrl = `${baseUrl}/payment-success?invoice_id=${invoiceId}`;
+
   // Create a payment link
   const paymentLink = await stripe.paymentLinks.create({
     line_items: [
@@ -61,9 +70,9 @@ export async function createInvoicePaymentLink(
     // Enable multiple payment methods including ACH (US bank account)
     payment_method_types: ['card', 'us_bank_account'],
     after_completion: {
-      type: 'hosted_confirmation',
-      hosted_confirmation: {
-        custom_message: `Thank you for your payment! Invoice #${invoiceNumber} has been marked as paid.`,
+      type: 'redirect',
+      redirect: {
+        url: successUrl,
       },
     },
     // Store invoice ID in metadata for webhook tracking

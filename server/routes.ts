@@ -120,9 +120,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log('[Stripe Webhook] Successfully marked invoice as paid:', invoiceId);
 
+        // Fetch invoice to get payment link ID and customer details
+        const invoice = await storage.getInvoice(invoiceId);
+
+        // Deactivate the Stripe payment link to prevent duplicate payments
+        if (invoice?.stripePaymentLinkId) {
+          try {
+            console.log('[Stripe Webhook] Deactivating payment link:', invoice.stripePaymentLinkId);
+            await stripe.paymentLinks.update(invoice.stripePaymentLinkId, {
+              active: false,
+            });
+            console.log('[Stripe Webhook] Payment link deactivated successfully');
+          } catch (linkError: any) {
+            console.error('[Stripe Webhook] Failed to deactivate payment link:', linkError.message);
+            // Don't fail the webhook if link deactivation fails
+          }
+        }
+
         // Send payment receipt email
         try {
-          const invoice = await storage.getInvoice(invoiceId);
           if (invoice && invoice.customer) {
             console.log('[Stripe Webhook] Sending payment receipt email...');
             
@@ -153,6 +169,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('[Stripe Webhook] Error processing webhook:', error);
       res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
+  // Public payment success endpoint (no auth required)
+  // TODO: Consider adding signed token validation for enhanced security
+  app.get("/api/payment-status/:invoiceId", async (req, res) => {
+    try {
+      const { invoiceId } = req.params;
+      
+      const invoice = await storage.getInvoice(invoiceId);
+      
+      if (!invoice) {
+        return res.status(404).json({ error: 'Invoice not found' });
+      }
+
+      // Return payment status info - protected by UUID randomness
+      res.json({
+        invoiceNumber: invoice.invoiceNumber,
+        amount: invoice.amount,
+        isPaid: invoice.isPaid,
+        // Mask customer name to protect privacy
+        customerName: invoice.customer?.name 
+          ? `${invoice.customer.name.charAt(0)}***` 
+          : 'Customer',
+      });
+    } catch (error) {
+      console.error('Error fetching payment status:', error);
+      res.status(500).json({ error: 'Failed to fetch payment status' });
     }
   });
 
@@ -574,6 +618,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.getUser(req.session.userId!);
+
+      // If invoice is already paid, send payment receipt instead of invoice
+      if (invoice.isPaid) {
+        console.log(`[Email Invoice ${invoice.invoiceNumber}] Invoice already paid, sending payment receipt`);
+        
+        await sendPaymentReceiptEmail(
+          invoice.customer.email,
+          invoice.customer.name,
+          invoice.customer.phone || '',
+          invoice.customer.address || '',
+          invoice.invoiceNumber,
+          invoice.date,
+          invoice.items || [{ description: invoice.service || 'Service', amount: invoice.amount }],
+          invoice.amount,
+          user?.companyName
+        );
+
+        return res.json({ message: "Payment receipt sent successfully" });
+      }
 
       // Debug logging for payment link
       console.log(`[Email Invoice ${invoice.invoiceNumber}] Payment link URL:`, invoice.paymentLinkUrl || 'NONE');
