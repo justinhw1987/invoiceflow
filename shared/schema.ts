@@ -53,6 +53,8 @@ export const invoices = pgTable("invoices", {
   service: text("service"),
   amount: decimal("amount", { precision: 10, scale: 2 }),
   isPaid: boolean("is_paid").notNull().default(false),
+  stripePaymentLinkId: text("stripe_payment_link_id"),
+  paymentLinkUrl: text("payment_link_url"),
   googleSheetRowId: text("google_sheet_row_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
