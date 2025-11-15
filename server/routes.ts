@@ -46,6 +46,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.TESTING_STRIPE_WEBHOOK_SECRET;
 
+    console.log('[Stripe Webhook] Received webhook request');
+    console.log('[Stripe Webhook] Signature header:', sig ? 'present' : 'missing');
+    console.log('[Stripe Webhook] Webhook secret:', webhookSecret ? 'configured' : 'missing');
+
     if (!webhookSecret) {
       console.error('[Stripe Webhook] No webhook secret configured');
       return res.status(500).json({ error: 'Webhook secret not configured' });
@@ -56,17 +60,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Verify webhook signature using raw body
       const rawBody = (req as any).rawBody;
-      if (!rawBody) {
-        throw new Error('Raw body not available');
-      }
+      console.log('[Stripe Webhook] Raw body type:', typeof rawBody);
+      console.log('[Stripe Webhook] Raw body available:', !!rawBody);
+      console.log('[Stripe Webhook] Raw body is Buffer:', Buffer.isBuffer(rawBody));
       
-      event = stripe.webhooks.constructEvent(
-        rawBody,
-        sig as string,
-        webhookSecret
-      );
+      if (!rawBody) {
+        console.error('[Stripe Webhook] Raw body not available - using req.body as fallback');
+        // Fallback: try to use stringified body
+        const bodyString = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        event = stripe.webhooks.constructEvent(
+          bodyString,
+          sig as string,
+          webhookSecret
+        );
+      } else {
+        event = stripe.webhooks.constructEvent(
+          rawBody,
+          sig as string,
+          webhookSecret
+        );
+      }
     } catch (err: any) {
       console.error('[Stripe Webhook] Signature verification failed:', err.message);
+      console.error('[Stripe Webhook] Error details:', err);
       return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
     }
 
