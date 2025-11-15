@@ -7,7 +7,7 @@ import bcrypt from "bcrypt";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
-import { sendInvoiceEmail, generateInvoicePDF } from "./email";
+import { sendInvoiceEmail, generateInvoicePDF, sendPaymentReceiptEmail } from "./email";
 import { createInvoicePaymentLink, stripe } from "./stripe";
 import * as XLSX from "xlsx";
 
@@ -119,6 +119,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         console.log('[Stripe Webhook] Successfully marked invoice as paid:', invoiceId);
+
+        // Send payment receipt email
+        try {
+          const invoice = await storage.getInvoice(invoiceId);
+          if (invoice && invoice.customer) {
+            console.log('[Stripe Webhook] Sending payment receipt email...');
+            
+            // Get user for company name
+            const user = await storage.getUser(invoice.userId);
+            
+            await sendPaymentReceiptEmail(
+              invoice.customer.email,
+              invoice.customer.name,
+              invoice.customer.phone || '',
+              invoice.customer.address || '',
+              invoice.invoiceNumber,
+              invoice.date,
+              invoice.items || [{ description: invoice.service || 'Service', amount: invoice.amount }],
+              invoice.amount,
+              user?.companyName
+            );
+            
+            console.log('[Stripe Webhook] Payment receipt email sent successfully');
+          }
+        } catch (emailError) {
+          console.error('[Stripe Webhook] Failed to send payment receipt email:', emailError);
+          // Don't fail the webhook if email fails
+        }
       }
 
       res.json({ received: true });

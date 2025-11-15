@@ -109,7 +109,8 @@ export async function generateInvoicePDF(
   date: string,
   items: Array<{ description: string; amount: string }>,
   totalAmount: string,
-  companyName?: string
+  companyName?: string,
+  isPaid: boolean = false
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 });
@@ -182,6 +183,19 @@ export async function generateInvoicePDF(
     doc.fontSize(14).fillColor('#111827').text('TOTAL', 400, doc.y, { width: 100, align: 'right' });
     doc.fontSize(18).fillColor('#3b82f6').text(`$${parseFloat(totalAmount).toFixed(2)}`, 400, doc.y, { width: 150, align: 'right' });
     doc.moveDown(4);
+
+    // Add "PAID" watermark if invoice is paid
+    if (isPaid) {
+      doc.save();
+      doc.rotate(-45, { origin: [300, 400] });
+      doc.fontSize(80)
+        .fillColor('#dc2626', 0.3)
+        .text('PAID', 150, 350, {
+          width: 400,
+          align: 'center'
+        });
+      doc.restore();
+    }
 
     // Footer message
     doc.fontSize(10).fillColor('#6b7280').text(
@@ -341,6 +355,151 @@ export async function sendInvoiceEmail(
     return true;
   } catch (error) {
     console.error('Error sending email:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a payment receipt email with PDF marked as PAID
+ */
+export async function sendPaymentReceiptEmail(
+  customerEmail: string,
+  customerName: string,
+  customerPhone: string,
+  customerAddress: string,
+  invoiceNumber: number,
+  date: string,
+  items: Array<{ description: string; amount: string }>,
+  totalAmount: string,
+  companyName?: string
+) {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+    
+    const rawSenderName = companyName || 'Invoice Manager';
+    const senderName = escapeHtml(rawSenderName);
+    const escapedCustomerName = escapeHtml(customerName);
+    
+    // Generate PDF with PAID watermark
+    const pdfBuffer = await generateInvoicePDF(
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerAddress,
+      invoiceNumber,
+      date,
+      items,
+      totalAmount,
+      companyName,
+      true // isPaid = true to show PAID watermark  
+    );
+
+    // Convert PDF buffer to base64 for email attachment
+    const pdfBase64 = pdfBuffer.toString('base64');
+
+    // Generate item rows for email using table layout
+    const itemRows = items.map(item => {
+      const escapedDescription = escapeHtml(item.description);
+      return `
+        <tr>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: left;">${escapedDescription}</td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; white-space: nowrap;">$${parseFloat(item.amount).toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #10b981; color: white; padding: 20px; text-align: center; }
+            .content { padding: 30px; background: #f9fafb; }
+            .paid-badge { display: inline-block; background: #dc2626; color: white; padding: 8px 20px; border-radius: 6px; font-weight: bold; font-size: 18px; margin: 10px 0; }
+            .invoice-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .table-header { background: #f3f4f6; font-weight: bold; }
+            .total-row { border-top: 2px solid #10b981; }
+            .total { font-size: 24px; font-weight: bold; color: #10b981; }
+            .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✓ Payment Received</h1>
+              <div class="paid-badge">PAID</div>
+            </div>
+            <div class="content">
+              <p>Dear ${escapedCustomerName},</p>
+              <p>Thank you for your payment! We have received your payment for Invoice #${invoiceNumber}.</p>
+              <p>Your receipt is attached as a PDF with "PAID" marked in red.</p>
+              
+              <div class="invoice-details">
+                <table style="width: 100%; margin-bottom: 15px;">
+                  <tr>
+                    <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>
+                    <td style="padding: 8px 0; text-align: right;">#${invoiceNumber}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;"><strong>Invoice Date:</strong></td>
+                    <td style="padding: 8px 0; text-align: right;">${new Date(date).toLocaleDateString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;"><strong>Payment Date:</strong></td>
+                    <td style="padding: 8px 0; text-align: right;">${new Date().toLocaleDateString()}</td>
+                  </tr>
+                </table>
+                
+                <table class="invoice-table">
+                  <thead>
+                    <tr class="table-header">
+                      <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #d1d5db;">Description</th>
+                      <th style="padding: 12px 8px; text-align: right; border-bottom: 2px solid #d1d5db; white-space: nowrap;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemRows}
+                  </tbody>
+                  <tfoot>
+                    <tr class="total-row">
+                      <td style="padding: 15px 8px; text-align: left;"><strong>Total Paid:</strong></td>
+                      <td style="padding: 15px 8px; text-align: right;"><span class="total">$${parseFloat(totalAmount).toFixed(2)}</span></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              
+              <p>This email serves as your official payment receipt. Please keep this for your records.</p>
+              <p>If you have any questions, please don't hesitate to contact us.</p>
+            </div>
+            <div class="footer">
+              <p>${senderName} - Professional Invoice Management</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await client.emails.send({
+      from: fromEmail,
+      to: customerEmail,
+      subject: `Payment Receipt - Invoice #${invoiceNumber} from ${rawSenderName}`,
+      html,
+      attachments: [
+        {
+          filename: `receipt-invoice-${invoiceNumber}.pdf`,
+          content: pdfBase64,
+        },
+      ],
+    });
+
+    console.log(`[Email] Payment receipt sent to ${customerEmail} for invoice #${invoiceNumber}`);
+    return true;
+  } catch (error) {
+    console.error('Error sending payment receipt email:', error);
     throw error;
   }
 }
