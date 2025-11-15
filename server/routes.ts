@@ -168,10 +168,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   let type = '';
                   
                   if (paymentMethod.type === 'card' && paymentMethod.card) {
-                    last4 = paymentMethod.card.last4;
+                    last4 = paymentMethod.card.last4 || '';
                     type = 'card';
                   } else if (paymentMethod.type === 'us_bank_account' && paymentMethod.us_bank_account) {
-                    last4 = paymentMethod.us_bank_account.last4;
+                    last4 = paymentMethod.us_bank_account.last4 || '';
                     type = 'us_bank_account';
                   }
                   
@@ -231,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               invoice.date,
               invoice.items || [{ description: invoice.service || 'Service', amount: invoice.amount }],
               invoice.amount,
-              user?.companyName
+              user?.companyName || undefined
             );
             
             console.log('[Stripe Webhook] Payment receipt email sent successfully');
@@ -541,7 +541,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invoices = await storage.getInvoices(req.session.userId!);
       res.json(invoices);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Failed to fetch invoices:", error);
       res.status(500).json({ message: "Failed to fetch invoices" });
     }
   });
@@ -799,7 +800,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoice.date,
           invoice.items || [{ description: invoice.service || 'Service', amount: invoice.amount }],
           invoice.amount,
-          user?.companyName
+          user?.companyName || undefined
         );
 
         return res.json({ message: "Payment receipt sent successfully" });
@@ -1039,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If not auto-paid, create payment link as fallback
       if (!invoiceAutoPaid) {
         try {
-          const { url, paymentLinkId } = await createInvoicePaymentLink(
+          const { paymentLinkUrl: linkUrl, paymentLinkId } = await createInvoicePaymentLink(
             invoiceNumber,
             customer.name,
             customer.email,
@@ -1052,7 +1053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             customer.id
           );
           
-          paymentLinkUrl = url;
+          paymentLinkUrl = linkUrl;
 
           // Update invoice with payment link info
           await storage.updateInvoice(invoice.id, {

@@ -15,7 +15,7 @@ export interface IStorage {
   getCustomers(userId: string): Promise<Customer[]>;
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer & { userId: string }): Promise<Customer>;
-  updateCustomer(id: string, customer: InsertCustomer): Promise<Customer | undefined>;
+  updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
   deleteCustomer(id: string): Promise<void>;
 
   // Invoice methods
@@ -92,7 +92,7 @@ export class DatabaseStorage implements IStorage {
     return newCustomer;
   }
 
-  async updateCustomer(id: string, customer: InsertCustomer): Promise<Customer | undefined> {
+  async updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined> {
     const [updated] = await db
       .update(customers)
       .set(customer)
