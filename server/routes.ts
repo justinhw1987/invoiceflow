@@ -837,6 +837,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoiceNumber,
       });
 
+      console.log(`[Recurring Invoice ${invoiceNumber}] Created invoice from template:`, invoice.id);
+
+      // Create Stripe payment link
+      let paymentLinkUrl = '';
+      let stripePaymentLinkId = '';
+
+      try {
+        const { url, paymentLinkId } = await createInvoicePaymentLink(
+          invoiceNumber,
+          recurringInvoice.amount,
+          invoice.id
+        );
+        
+        paymentLinkUrl = url;
+        stripePaymentLinkId = paymentLinkId;
+
+        // Update invoice with payment link info
+        await storage.updateInvoice(invoice.id, {
+          paymentLinkUrl,
+          stripePaymentLinkId,
+        });
+
+        console.log(`[Recurring Invoice ${invoiceNumber}] Payment link created:`, paymentLinkUrl);
+      } catch (stripeError: any) {
+        console.error(`[Recurring Invoice ${invoiceNumber}] Failed to create payment link:`, stripeError.message || stripeError);
+      }
+
       // Update recurring invoice with next invoice date
       const nextDate = calculateNextInvoiceDate(recurringInvoice.frequency, currentDate);
       await storage.updateRecurringInvoiceNextDate(req.params.id, nextDate, currentDate);
@@ -845,6 +872,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (recurringInvoice.customer.email) {
         try {
           const user = await storage.getUser(req.session.userId!);
+          
+          console.log(`[Recurring Invoice ${invoiceNumber}] Sending email with payment link:`, paymentLinkUrl || 'NONE');
+          
           await sendInvoiceEmail(
             recurringInvoice.customer.email,
             recurringInvoice.customer.name,
@@ -858,15 +888,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             recurringInvoice.items.map((item: any) => ({
               description: item.description,
               amount: item.amount,
-            }))
+            })),
+            paymentLinkUrl
           );
+          
+          console.log(`[Recurring Invoice ${invoiceNumber}] Email sent successfully`);
         } catch (emailError) {
           console.error("Email sending error:", emailError);
           // Don't fail the request if email fails
         }
       }
 
-      res.json(invoice);
+      // Fetch and return updated invoice
+      const updatedInvoice = await storage.getInvoice(invoice.id);
+      res.json(updatedInvoice);
     } catch (error) {
       console.error("Failed to generate invoice:", error);
       res.status(500).json({ message: "Failed to generate invoice" });
