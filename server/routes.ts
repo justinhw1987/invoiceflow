@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import express from "express";
 import { storage } from "./storage";
 import { insertCustomerSchema, insertInvoiceSchema, insertUserSchema, changePasswordSchema, updateProfileSchema, createInvoiceWithItemsSchema, createRecurringInvoiceWithItemsSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -41,8 +42,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
 
-  // Stripe webhook endpoint (must be before body parsing middleware)
-  app.post("/api/stripe/webhook", async (req, res) => {
+  // Stripe webhook endpoint with raw body parser
+  app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.TESTING_STRIPE_WEBHOOK_SECRET;
 
@@ -58,28 +59,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let event;
 
     try {
-      // Verify webhook signature using raw body
-      const rawBody = (req as any).rawBody;
-      console.log('[Stripe Webhook] Raw body type:', typeof rawBody);
-      console.log('[Stripe Webhook] Raw body available:', !!rawBody);
-      console.log('[Stripe Webhook] Raw body is Buffer:', Buffer.isBuffer(rawBody));
+      // The express.raw() middleware gives us req.body as a Buffer
+      console.log('[Stripe Webhook] Body type:', typeof req.body);
+      console.log('[Stripe Webhook] Body is Buffer:', Buffer.isBuffer(req.body));
       
-      if (!rawBody) {
-        console.error('[Stripe Webhook] Raw body not available - using req.body as fallback');
-        // Fallback: try to use stringified body
-        const bodyString = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-        event = stripe.webhooks.constructEvent(
-          bodyString,
-          sig as string,
-          webhookSecret
-        );
-      } else {
-        event = stripe.webhooks.constructEvent(
-          rawBody,
-          sig as string,
-          webhookSecret
-        );
-      }
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig as string,
+        webhookSecret
+      );
     } catch (err: any) {
       console.error('[Stripe Webhook] Signature verification failed:', err.message);
       console.error('[Stripe Webhook] Error details:', err);
