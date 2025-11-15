@@ -13,9 +13,11 @@ import { Button } from "@/components/ui/button";
 import type { Customer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+const stripePromise = stripePublicKey ? loadStripe(stripePublicKey) : null;
 
 interface PaymentMethodDialogProps {
   open: boolean;
@@ -113,7 +115,7 @@ export function PaymentMethodDialog({ open, onOpenChange, customer }: PaymentMet
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (open && customer) {
+    if (open && customer && stripePromise) {
       setIsLoading(true);
       apiRequest("POST", `/api/customers/${customer.id}/setup-payment-method`, undefined)
         .then((data: any) => {
@@ -146,6 +148,28 @@ export function PaymentMethodDialog({ open, onOpenChange, customer }: PaymentMet
       theme: "stripe",
     },
   };
+
+  if (!stripePromise) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-payment-method">
+          <DialogHeader>
+            <DialogTitle>Add Payment Method</DialogTitle>
+            <DialogDescription>
+              Stripe payment integration is not configured
+            </DialogDescription>
+          </DialogHeader>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Configuration Required</AlertTitle>
+            <AlertDescription>
+              Stripe payments are not configured. Please contact your administrator to set up the VITE_STRIPE_PUBLIC_KEY environment variable.
+            </AlertDescription>
+          </Alert>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
