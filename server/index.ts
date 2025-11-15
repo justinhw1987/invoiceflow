@@ -9,12 +9,27 @@ declare module 'http' {
     rawBody: unknown
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
+
+// Skip JSON parsing for Stripe webhook endpoint (needs raw body for signature verification)
+app.use((req, res, next) => {
+  if (req.path === '/api/stripe/webhook') {
+    next();
+  } else {
+    express.json({
+      verify: (req, _res, buf) => {
+        req.rawBody = buf;
+      }
+    })(req, res, next);
   }
-}));
-app.use(express.urlencoded({ extended: false }));
+});
+
+app.use((req, res, next) => {
+  if (req.path === '/api/stripe/webhook') {
+    next();
+  } else {
+    express.urlencoded({ extended: false })(req, res, next);
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

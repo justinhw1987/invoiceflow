@@ -1,0 +1,58 @@
+[Stripe Webhook] Received webhook request
+[Stripe Webhook] Signature header: present
+[Stripe Webhook] Webhook secret: configured
+[Stripe Webhook] Body type: object
+[Stripe Webhook] Body is Buffer: false
+[Stripe Webhook] Signature verification failed: Webhook payload must be provided as a string or a Buffer (https://nodejs.org/api/buffer.html) instance representing the _raw_ request body.Payload was provided as a parsed JavaScript object instead. 
+Signature verification is impossible without access to the original signed material. 
+Learn more about webhook signing and explore webhook integration examples for various frameworks at https://docs.stripe.com/webhooks/signature
+[Stripe Webhook] Error details: StripeSignatureVerificationError: Webhook payload must be provided as a string or a Buffer (https://nodejs.org/api/buffer.html) instance representing the _raw_ request body.Payload was provided as a parsed JavaScript object instead. 
+Signature verification is impossible without access to the original signed material. 
+Learn more about webhook signing and explore webhook integration examples for various frameworks at https://docs.stripe.com/webhooks/signature
+    at validateComputedSignature (file:///app/node_modules/stripe/esm/Webhooks.js:135:23)
+    at Object.verifyHeader (file:///app/node_modules/stripe/esm/Webhooks.js:67:13)
+    at Object.constructEvent (file:///app/node_modules/stripe/esm/Webhooks.js:12:32)
+    at file:///app/dist/index.js:832:31
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+    at next (/app/node_modules/express/lib/router/route.js:149:13)
+    at rawParser (/app/node_modules/body-parser/lib/types/raw.js:58:7)
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+    at next (/app/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/app/node_modules/express/lib/router/route.js:119:3) {
+  type: 'StripeSignatureVerificationError',
+  raw: {
+    message: 'Webhook payload must be provided as a string or a Buffer (https://nodejs.org/api/buffer.html) instance representing the _raw_ request body.Payload was provided as a parsed JavaScript object instead. \n' +
+      'Signature verification is impossible without access to the original signed material. \n' +
+      '\n' +
+      'Learn more about webhook signing and explore webhook integration examples for various frameworks at https://docs.stripe.com/webhooks/signature\n'
+  },
+  rawType: undefined,
+  code: undefined,
+  doc_url: undefined,
+  param: undefined,
+  setup_intent: undefined,
+  payment_intent: undefined,
+  payment_method: undefined,
+  payment_method_type: undefined,
+  statusCode: undefined,
+  userMessage: undefined,
+  charge: undefined,
+  decline_code: undefined,
+  detail: undefined,
+  headers: undefined,
+  requestId: undefined,
+  source: undefined,
+  header: 't=1763182818,v1=5415f71c5a09026bb67d43a131e0b321afe9d2800cd2e0c8763c5ad5782c0dce,v0=c13110f77a9f0451170f1b8f3ad0a53535421cd6ce9fcadeacddbf780720c2cf',
+    object: 'event',
+  payload: {
+    api_version: '2025-09-30.clover',
+    id: 'evt_1STbDvKXU3oL2Qd8VXQk4mql',
+    created: 1763181391,
+    data: { object: [Object] },
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    type: 'checkout.session.completed'
+  }
+}
+5:00:18 AM [express] POST /api/stripe/webhook 400 in 5ms :: {"error":"Webhook signature verification…
