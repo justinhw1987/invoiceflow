@@ -435,6 +435,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.getUser(req.session.userId!);
 
+      // Debug logging for payment link
+      console.log(`[Email Invoice ${invoice.invoiceNumber}] Payment link URL:`, invoice.paymentLinkUrl || 'NONE');
+      console.log(`[Email Invoice ${invoice.invoiceNumber}] Payment link ID:`, invoice.stripePaymentLinkId || 'NONE');
+
       // Use items if available, otherwise use legacy service field
       const serviceDescription = invoice.items && invoice.items.length > 0
         ? invoice.items.map((item: any) => `${item.description}: $${parseFloat(item.amount).toFixed(2)}`).join(', ')
