@@ -414,7 +414,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoice.amount,
         invoice.date,
         user?.companyName || undefined,
-        invoice.items || []
+        invoice.items || [],
+        invoice.paymentLinkUrl || undefined
       );
 
       res.json({ message: "Invoice sent successfully" });
