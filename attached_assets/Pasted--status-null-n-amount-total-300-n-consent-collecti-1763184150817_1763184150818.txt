@@ -1,0 +1,124 @@
+    '        "status": null\n' +
+    '      "amount_total": 300,\n' +
+    '      "consent_collection": null,\n' +
+    '      "created": 1763181366,\n' +
+    '      "automatic_tax": {\n' +
+    '      "currency": "usd",\n' +
+    '      },\n' +
+    '        "enabled": false,\n' +
+    '      "billing_address_collection": "auto",\n' +
+    '        "liability": null,\n' +
+    '      "collected_information": {\n' +
+    '      "cancel_url": "https://stripe.com",\n' +
+    '        "business_name": null,\n' +
+    '      "client_reference_id": null,\n' +
+    '        "individual_name": null,\n' +
+    '      "client_secret": null,\n' +
+    '        "shipping_details": null\n' +
+    '        "after_submit": null,\n' +
+    '        "shipping_address": null,\n' +
+    '        "submit": null,\n' +
+    '        "terms_of_service_acceptance": null\n' +
+    '      },\n' +
+    '      "customer": "cus_TQS83RUQab6Sst",\n' +
+    '      "customer_creation": "always",\n' +
+    '      "customer_details": {\n' +
+    '        "address": {\n' +
+    '          "city": null,\n' +
+    '          "country": "US",\n' +
+    '          "line1": null,\n' +
+    '          "line2": null,\n' +
+    '          "postal_code": "23123",\n' +
+    '          "state": null\n' +
+    '        },\n' +
+    '        "business_name": null,\n' +
+    '        "email": "as@asd.com",\n' +
+    '        "individual_name": null,\n' +
+    '        "name": "as",\n' +
+    '        "phone": null,\n' +
+    '        "tax_exempt": "none",\n' +
+    '        "tax_ids": []\n' +
+    '      },\n' +
+    '      "customer_email": null,\n' +
+    '      "discounts": [],\n' +
+    '        }\n' +
+    '      },\n' +
+    '      "expires_at": 1763267766,\n' +
+    '      "invoice": "in_1STbDtKXU3oL2Qd8FmeeDwsa",\n' +
+    '      "livemode": false,\n' +
+    '      "invoice_creation": {\n' +
+    '      "locale": "auto",\n' +
+    '        "enabled": true,\n' +
+    '      "metadata": {},\n' +
+    '        "invoice_data": {\n' +
+    '      "mode": "payment",\n' +
+    '          "account_tax_ids": null,\n' +
+    '      "origin_context": null,\n' +
+    '      "payment_intent": "pi_3STbDrKXU3oL2Qd81bWG37ck",\n' +
+    '          "custom_fields": null,\n' +
+    '      "payment_link": "plink_1STauvKXU3oL2Qd8zY5wbkEA",\n' +
+    '          "description": null,\n' +
+    '      "payment_method_collection": "if_required",\n' +
+    '          "footer": null,\n' +
+    '      "payment_method_configuration_details": {\n' +
+    '          "issuer": {\n' +
+    '            "type": "self"\n' +
+    '          },\n' +
+    '          "metadata": {},\n' +
+    '          "rendering_options": null\n' +
+    '      },\n' +
+    '      "recovered_from": null,\n' +
+    '      "saved_payment_method_options": {\n' +
+    '        "allow_redisplay_filters": [\n' +
+    '          "always"\n' +
+    '        ],\n' +
+    '        "payment_method_remove": "disabled",\n' +
+    '        "payment_method_save": null\n' +
+    '        "id": "pmc_1SDwsYKXU3oL2Qd8FBXIrQMa",\n' +
+    '        "parent": null\n' +
+    '      },\n' +
+    '      "payment_method_options": {\n' +
+    '        "card": {\n' +
+    '          "request_three_d_secure": "automatic"\n' +
+    '        }\n' +
+    '      },\n' +
+    '      "payment_method_types": [\n' +
+    '        "card",\n' +
+    '        "klarna",\n' +
+    '        "link",\n' +
+    '        "cashapp",\n' +
+    '        "amazon_pay"\n' +
+    '      ],\n' +
+    '      "payment_status": "paid",\n' +
+    '      "permissions": null,\n' +
+    '      "phone_number_collection": {\n' +
+    '        "enabled": false\n' +
+    '      "total_details": {\n' +
+    '      },\n' +
+    '      "setup_intent": null,\n' +
+    '      "shipping_address_collection": null,\n' +
+    '        "amount_discount": 0,\n' +
+    '      "shipping_cost": null,\n' +
+    '  },\n' +
+    '        "amount_shipping": 0,\n' +
+    '      "shipping_options": [],\n' +
+    '        "amount_tax": 0\n' +
+    '      "status": "complete",\n' +
+    '      },\n' +
+    '      "submit_type": "auto",\n' +
+    '      "ui_mode": "hosted",\n' +
+    '      "subscription": null,\n' +
+    '      "url": null,\n' +
+    '      "success_url": "https://stripe.com",\n' +
+    '      "wallet_options": null\n' +
+    '    }\n' +
+    '  "type": "checkout.session.completed"\n' +
+    '  },\n' +
+    '}'
+    '  "livemode": false,\n' +
+    '  "pending_webhooks": 1,\n' +
+    '  "request": {\n' +
+    '    "id": null,\n' +
+    '    "idempotency_key": null\n' +
+}
+5:21:54 AM [express] POST /api/stripe/webhook 400 in 13ms :: {"error":"Webhook signature verificatio…
