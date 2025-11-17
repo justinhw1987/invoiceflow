@@ -1,0 +1,53 @@
+5:30:29 AM [express] serving on port 8080
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+5:31:34 AM [express] GET /api/invoices 500 in 13ms :: {"message":"Failed to fetch invoices"}
+5:31:34 AM [express] GET /api/auth/me 304 in 16ms :: {"id":"4e9e640d-e53d-4eac-b1c3-055eaebc88cc","u…
+Failed to fetch invoices: error: column customers.stripe_customer_id does not exist
+    at /app/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+    at async DatabaseStorage.getInvoices (file:///app/dist/index.js:282:21)
+    at async file:///app/dist/index.js:1380:25 {
+  length: 127,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '499',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+5:31:37 AM [express] GET /api/auth/me 304 in 6ms :: {"id":"4e9e640d-e53d-4eac-b1c3-055eaebc88cc","us…
+Failed to fetch invoices: error: column customers.stripe_customer_id does not exist
+    at /app/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+    at async DatabaseStorage.getInvoices (file:///app/dist/index.js:282:21)
+    at async file:///app/dist/index.js:1380:25 {
+  length: 127,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '499',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+5:31:37 AM [express] GET /api/invoices 500 in 9ms :: {"message":"Failed to fetch invoices"}
