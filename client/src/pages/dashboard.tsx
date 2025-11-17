@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Plus, FileText, DollarSign, CheckCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
-import type { Invoice, Customer } from "@shared/schema";
+import type { Invoice, Customer, InvoiceItem } from "@shared/schema";
 import { InvoiceViewDialog } from "@/components/invoice-view-dialog";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
+  items?: InvoiceItem[];
 }
 
 export default function Dashboard() {

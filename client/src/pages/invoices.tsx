@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Mail, Download, Eye, RefreshCcw, Trash2, Pencil } from "lucide-react";
 import { useLocation } from "wouter";
-import type { Invoice, Customer } from "@shared/schema";
+import type { Invoice, Customer, InvoiceItem } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { InvoiceViewDialog } from "@/components/invoice-view-dialog";
@@ -24,6 +24,7 @@ import { downloadInvoicePDF } from "@/lib/download-invoice-pdf";
 
 interface InvoiceWithCustomer extends Invoice {
   customer: Customer;
+  items?: InvoiceItem[];
 }
 
 export default function Invoices() {
@@ -248,7 +249,14 @@ export default function Invoices() {
                       <td className="py-4 px-4 text-sm text-muted-foreground">
                         {new Date(invoice.date).toLocaleDateString()}
                       </td>
-                      <td className="py-4 px-4 text-sm">{invoice.service}</td>
+                      <td className="py-4 px-4 text-sm">
+                        {invoice.items && invoice.items.length > 0 
+                          ? invoice.items.length === 1
+                            ? invoice.items[0].description
+                            : `${invoice.items[0].description} ${invoice.items.length > 1 ? `+${invoice.items.length - 1} more` : ''}`
+                          : invoice.service || 'N/A'
+                        }
+                      </td>
                       <td className="py-4 px-4 text-right font-medium">
                         ${parseFloat(invoice.amount || "0").toFixed(2)}
                       </td>
